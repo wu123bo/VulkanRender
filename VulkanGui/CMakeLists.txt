@@ -8,6 +8,9 @@ set(SRC
     ${COMMON}/MacroHead.h
 
     src/main.cpp
+
+    src/Shader.h
+    src/Shader.cpp
     src/HelloTrangle.h
     src/HelloTrangle.cpp
 

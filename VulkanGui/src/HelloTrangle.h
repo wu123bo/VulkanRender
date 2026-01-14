@@ -92,6 +92,12 @@ private:
     // 创建图像视图
     void createImageViews();
 
+    // 创建图形管线
+    void createGraphicsPipeline();
+
+    // 创建着色器模块
+    VkShaderModule createShaderModule(const std::vector<char> &code);
+
     // 物理设备是否适用
     bool isDeviceSuitable(VkPhysicalDevice device);
 

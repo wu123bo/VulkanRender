@@ -1,4 +1,5 @@
 ﻿#include "HelloTrangle.h"
+#include "Shader.h"
 
 // 此结构应传递给 vkCreateDebugUtilsMessengerEXT 函数以创建
 // VkDebugUtilsMessengerEXT 对象
@@ -67,6 +68,9 @@ void HelloTrangle::initVulkan()
 
     // 创建图像视图
     createImageViews();
+
+    // 创建图形管线
+    createGraphicsPipeline();
 }
 
 void HelloTrangle::mainLoop()
@@ -225,22 +229,7 @@ void HelloTrangle::pickPhysicalDevice()
     std::vector<VkPhysicalDevice> devices(deviceCount);
     vkEnumeratePhysicalDevices(_instance, &deviceCount, devices.data());
 
-    // 物理设备评估 找到合适的物理设备
-    // std::multimap<int, VkPhysicalDevice> candidates;
-    // for (const auto &device : devices) {
-    //    // 评分
-    //    int score = rateDeviceSuitability(device);
-    //    candidates.insert(std::make_pair(score, device));
-    //}
-
-    //// 选择最高得分物理设备
-    // if (candidates.rbegin()->first > 0) {
-    //     _physicalDevice = candidates.rbegin()->second;
-    // } else {
-    //     throw std::runtime_error("未能找到合适的 GPU!");
-    // }
-
-    // 找到合适的物理设备
+    // 找到合适的物理设备 TODO后续使用评分
     for (const auto &device : devices) {
         if (isDeviceSuitable(device)) {
             _physicalDevice = device;
@@ -439,6 +428,7 @@ void HelloTrangle::createImageViews()
         createInfo.subresourceRange.baseArrayLayer = 0;
         createInfo.subresourceRange.layerCount = 1;
 
+        // 创建图像视图
         VkResult ret = vkCreateImageView(_device, &createInfo, nullptr,
                                          &_swapChainImageViews[i]);
 
@@ -446,6 +436,61 @@ void HelloTrangle::createImageViews()
             throw std::runtime_error("创建图像视图失败!");
         }
     }
+}
+
+void HelloTrangle::createGraphicsPipeline()
+{
+    // 加载shader文件
+    auto vertShaderCode = readShaderFile("Shaders/vert.spv");
+    auto fragShaderCode = readShaderFile("Shaders/frag.spv");
+
+    // 创建着色器模块
+    VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
+    VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
+
+    // 管线创建信息(顶点)
+    VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
+    vertShaderStageInfo.sType =
+        VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    // shader类型
+    vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+    vertShaderStageInfo.module = vertShaderModule;
+    vertShaderStageInfo.pName = "main";
+
+    // 管线创建信息(片元)
+    VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
+    fragShaderStageInfo.sType =
+        VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    fragShaderStageInfo.module = fragShaderModule;
+    fragShaderStageInfo.pName = "main";
+
+    // 定义一个包含这两个结构的数组
+    VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo,
+                                                      fragShaderStageInfo};
+
+    // 清理着色器模块
+    vkDestroyShaderModule(_device, vertShaderModule, nullptr);
+    vkDestroyShaderModule(_device, fragShaderModule, nullptr);
+}
+
+VkShaderModule HelloTrangle::createShaderModule(const std::vector<char> &code)
+{
+    // 着色器模块创建信息
+    VkShaderModuleCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    createInfo.codeSize = code.size();
+    createInfo.pCode = reinterpret_cast<const uint32_t *>(code.data());
+
+    // 创建着色器模块
+    VkShaderModule shaderMoule;
+    VkResult ret =
+        vkCreateShaderModule(_device, &createInfo, nullptr, &shaderMoule);
+    if (ret != VK_SUCCESS) {
+        throw std::runtime_error("创建着色器模块失败!");
+    }
+
+    return shaderMoule;
 }
 
 bool HelloTrangle::isDeviceSuitable(VkPhysicalDevice device)
