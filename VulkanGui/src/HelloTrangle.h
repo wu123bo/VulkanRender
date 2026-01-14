@@ -92,8 +92,29 @@ private:
     // 创建图像视图
     void createImageViews();
 
+    // 创建渲染通道
+    void createRenderPass();
+
     // 创建图形管线
     void createGraphicsPipeline();
+
+    // 创建帧缓冲区
+    void createFramebuffers();
+
+    // 创建命令池
+    void createCommandPool();
+
+    // 创建分配命令缓冲区
+    void createCommandBuffer();
+
+    // 创建同步对象
+    void createSyncObjects();
+
+    // 命令缓冲区记录
+    void recordCommandBuffer(VkCommandBuffer commandBuffer,
+                             uint32_t imageIndex);
+    // 渲染和呈现
+    void drawFrame();
 
     // 创建着色器模块
     VkShaderModule createShaderModule(const std::vector<char> &code);
@@ -121,7 +142,7 @@ private:
     // 物理设备评分
     int rateDeviceSuitability(VkPhysicalDevice device);
 
-    // 队列家族索引
+    // 找到合适的物理设备队列族索引
     QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
 
     // 该函数将根据是否启用验证层来返回所需的扩展列表
@@ -184,6 +205,32 @@ private:
 
     // 图像视图
     std::vector<VkImageView> _swapChainImageViews;
+
+    // 渲染通道
+    VkRenderPass _renderPass;
+
+    // 管线布局
+    VkPipelineLayout _pipelineLayout;
+
+    // 渲染管线
+    VkPipeline _graphicsPipeline;
+
+    // 帧缓冲区
+    std::vector<VkFramebuffer> _swapChainFramebuffers;
+
+    // 命令池
+    VkCommandPool _commandPool;
+
+    // 分配命令缓冲区
+    VkCommandBuffer _commandBuffer;
+
+    // 存储信号量
+    VkSemaphore _imageAvailableSemaphore;
+
+    VkSemaphore _renderFinishedSemaphore;
+
+    // 栅栏对象
+    VkFence _inFlightFence;
 
 private:
     // 物理设备支持扩展
