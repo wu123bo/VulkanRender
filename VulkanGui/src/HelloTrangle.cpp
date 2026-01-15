@@ -85,6 +85,9 @@ void HelloTrangle::initVulkan()
     // 创建命令池
     createCommandPool();
 
+    // 创建顶点数据缓冲区
+    createVertexBuffer();
+
     // 创建分配命令缓冲区
     createCommandBuffers();
 
@@ -110,6 +113,12 @@ void HelloTrangle::cleanup()
 {
     // 清理交换链 帧缓冲区 图像视图
     cleanupSwapChain();
+
+    // 清理顶点数据缓冲区
+    vkDestroyBuffer(_device, _vertexBuffer, nullptr);
+
+    // 释放顶点数据缓冲区内存
+    vkFreeMemory(_device, _vertexBufferMempry, nullptr);
 
     // 清理渲染管线
     vkDestroyPipeline(_device, _graphicsPipeline, nullptr);
@@ -548,7 +557,7 @@ void HelloTrangle::createRenderPass()
 void HelloTrangle::createGraphicsPipeline()
 {
     // 加载shader文件
-    auto vertShaderCode = readShaderFile("Shaders/vertCube.spv");
+    auto vertShaderCode = readShaderFile("Shaders/vertInVertex.spv");
     auto fragShaderCode = readShaderFile("Shaders/frag.spv");
 
     // 创建着色器模块
@@ -576,14 +585,25 @@ void HelloTrangle::createGraphicsPipeline()
     VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo,
                                                       fragShaderStageInfo};
 
-    // 顶点输入
+    // 管线顶点输入
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType =
         VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vertexInputInfo.vertexBindingDescriptionCount = 0;
-    vertexInputInfo.pVertexBindingDescriptions = nullptr; // Optional
-    vertexInputInfo.vertexAttributeDescriptionCount = 0;
-    vertexInputInfo.pVertexAttributeDescriptions = nullptr; // Optional
+
+    // 绑定描述
+    auto bindingDescription = VERTEX::getBindingDescription();
+    // 属性描述
+    auto attributeDescriptions = VERTEX::getAttributeDescriptions();
+
+    // 坐标数据绑定描述
+    vertexInputInfo.vertexBindingDescriptionCount = 1;
+    vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+
+    // 坐标数据属性描述
+    vertexInputInfo.vertexAttributeDescriptionCount =
+        static_cast<uint32_t>(attributeDescriptions.size());
+    vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+    // 已准备好接受vertices容器格式的顶点数据，并将其传递给我们的顶点着色器
 
     // 输入汇编
     VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
@@ -775,6 +795,94 @@ void HelloTrangle::createCommandPool()
     }
 }
 
+void HelloTrangle::createVertexBuffer()
+{
+    // 顶点缓冲区创建信息
+    VkBufferCreateInfo bufferInfo{};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+
+    // 为单位指定缓冲区的大小
+    bufferInfo.size = sizeof(_vertices[0]) * _vertices.size();
+
+    // 指示缓冲区中的数据将用于哪些目的
+    bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+
+    // 缓冲区也可以由特定的队列族拥有，或者同时在多个队列族之间共享
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    // 创建顶点缓冲区创建信息
+    VkResult ret =
+        vkCreateBuffer(_device, &bufferInfo, nullptr, &_vertexBuffer);
+    if (ret != VK_SUCCESS) {
+        throw std::runtime_error("创建顶点缓冲区失败!");
+    }
+
+    // 查询其内存需求
+    VkMemoryRequirements memRequirements;
+    // size：所需内存量的字节大小，可能与 bufferInfo.size 不同。
+    // alignment：缓冲区在内存分配区域中开始的字节偏移量，取决于 bufferInfo
+    // .usage 和 bufferInfo.flags。
+    //  memoryTypeBits：适用于该缓冲区的内存类型的位域。
+    vkGetBufferMemoryRequirements(_device, _vertexBuffer, &memRequirements);
+
+    // 内存分配信息
+    VkMemoryAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    // 内存量的字节大小
+    allocInfo.allocationSize = memRequirements.size;
+    // 合适的内存类型
+    allocInfo.memoryTypeIndex =
+        findMemoryType(memRequirements.memoryTypeBits,
+                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+                           | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+    // 顶点缓冲区分配内存
+    ret = vkAllocateMemory(_device, &allocInfo, nullptr, &_vertexBufferMempry);
+    if (ret != VK_SUCCESS) {
+        throw std::runtime_error("分配顶点缓冲区内存失败!");
+    }
+
+    // 分配成功 将此内存与缓冲区关联起来
+    vkBindBufferMemory(_device, _vertexBuffer, _vertexBufferMempry, 0);
+
+    /*填充顶点缓冲区*/
+
+    // 映射内存的指针
+    void *data = nullptr;
+    // 映射内存
+    vkMapMemory(_device, _vertexBufferMempry, 0, bufferInfo.size, 0, &data);
+
+    // 将顶点数据 memcpy 到映射内存
+    memcpy(data, _vertices.data(), (size_t)bufferInfo.size);
+
+    // 取消映射
+    vkUnmapMemory(_device, _vertexBufferMempry);
+}
+
+uint32_t HelloTrangle::findMemoryType(uint32_t typeFilter,
+                                      VkMemoryPropertyFlags properties)
+{
+    // 查询有关可用内存类型的信息
+    VkPhysicalDeviceMemoryProperties memProperties;
+    vkGetPhysicalDeviceMemoryProperties(_physicalDevice, &memProperties);
+
+    // 找到一种适合缓冲区本身的内存类型
+    for (size_t i = 0; i < memProperties.memoryTypeCount; i++) {
+
+        // 遍历物理设备支持的所有内存类型（通常 0~31）
+        // 找到一个既被驱动允许、又满足属性要求的内存类型
+        // 返回该内存类型索引，用于 vkAllocateMemory
+        if ((typeFilter & (1 << i))
+            && ((memProperties.memoryTypes[i].propertyFlags & properties)
+                == properties)) {
+            return i;
+        }
+    }
+
+    throw std::runtime_error("未能找到合适的内存类型!");
+    return 0;
+}
+
 void HelloTrangle::createCommandBuffers()
 {
     // 根据同时处理帧数 分配
@@ -889,6 +997,11 @@ void HelloTrangle::recordCommandBuffer(VkCommandBuffer commandBuffer,
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       _graphicsPipeline);
 
+    // 绑定顶点缓冲区
+    VkBuffer vertexBuffers[] = {_vertexBuffer};
+    VkDeviceSize offsets[] = {0};
+    vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+
     // 为此管线指定了视口和剪刀状态为动态 发出绘制命令之前在命令缓冲区中设置它们
     VkViewport viewport{};
     viewport.x = 0.0f; // 左上角 X 坐标
@@ -909,7 +1022,7 @@ void HelloTrangle::recordCommandBuffer(VkCommandBuffer commandBuffer,
     // 用于实例化渲染，如果不这样做，则使用 1
     // 用作顶点缓冲区的偏移量，定义了 gl_VertexIndex 的最小值
     // 用作实例化渲染的偏移量，定义了 gl_InstanceIndex 的最小值
-    vkCmdDraw(commandBuffer, 6, 1, 0, 0);
+    vkCmdDraw(commandBuffer, static_cast<uint32_t>(_vertices.size()), 1, 0, 0);
 
     // 结束渲染通道
     vkCmdEndRenderPass(commandBuffer);

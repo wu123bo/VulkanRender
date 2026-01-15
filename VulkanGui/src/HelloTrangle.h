@@ -11,7 +11,7 @@
 #include <set>
 #include <vector>
 
-#include "vulkan/vulkan.h"
+#include "MacroHead.h"
 
 #define VK_USE_PLATFORM_WIN32_KHR
 #define GLFW_INCLUDE_VULKAN
@@ -103,6 +103,13 @@ private:
 
     // 创建命令池
     void createCommandPool();
+
+    // 创建顶点缓冲区
+    void createVertexBuffer();
+
+    // 查找内存类型
+    uint32_t findMemoryType(uint32_t typeFilter,
+                            VkMemoryPropertyFlags properties);
 
     // 创建分配命令缓冲区
     void createCommandBuffers();
@@ -234,6 +241,12 @@ private:
 
     /*每一帧都应该有自己的命令缓冲区、信号量和栅栏 */
 
+    // 顶点缓冲区
+    VkBuffer _vertexBuffer;
+
+    // 顶点缓冲区内存
+    VkDeviceMemory _vertexBufferMempry;
+
     // 分配命令缓冲区
     std::vector<VkCommandBuffer> _commandBuffers;
 
@@ -255,6 +268,12 @@ private:
 private:
     // 同时处理多少帧的数量
     const int _MAX_FRAMES_IN_FLIGHT = 2;
+
+private:
+    // 顶点坐标 颜色值
+    const std::vector<VERTEX> _vertices = {{{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+                                           {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
+                                           {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}};
 
 private:
     // 物理设备支持扩展
