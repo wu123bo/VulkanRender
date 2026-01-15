@@ -84,7 +84,7 @@ void HelloTrangle::initVulkan()
     // 创建分配命令缓冲区
     createCommandBuffer();
 
-    //
+    // 创建同步对象
     createSyncObjects();
 }
 
@@ -97,6 +97,9 @@ void HelloTrangle::mainLoop()
         // 渲染和呈现
         drawFrame();
     }
+
+    // 等待 GPU 完全空闲
+    vkDeviceWaitIdle(_device);
 }
 
 void HelloTrangle::cleanup()
@@ -104,9 +107,11 @@ void HelloTrangle::cleanup()
     // 清理信号量
     vkDestroySemaphore(_device, _imageAvailableSemaphore, nullptr);
     vkDestroySemaphore(_device, _renderFinishedSemaphore, nullptr);
-
     // 清理栅栏
     vkDestroyFence(_device, _inFlightFence, nullptr);
+
+    // 清理命令池
+    vkDestroyCommandPool(_device, _commandPool, nullptr);
 
     // 清理帧缓冲区
     for (auto framebuffer : _swapChainFramebuffers) {
@@ -115,10 +120,8 @@ void HelloTrangle::cleanup()
 
     // 清理渲染管线
     vkDestroyPipeline(_device, _graphicsPipeline, nullptr);
-
     // 清理管线布局
     vkDestroyPipelineLayout(_device, _pipelineLayout, nullptr);
-
     // 清理渲染通道
     vkDestroyRenderPass(_device, _renderPass, nullptr);
 
@@ -129,7 +132,6 @@ void HelloTrangle::cleanup()
 
     // 清理交换链
     vkDestroySwapchainKHR(_device, _swapChain, nullptr);
-
     // 清理逻辑设备
     vkDestroyDevice(_device, nullptr);
 
@@ -141,7 +143,6 @@ void HelloTrangle::cleanup()
 
     // 清理窗口表面资源
     vkDestroySurfaceKHR(_instance, _surface, nullptr);
-
     // 清理vulkan实例
     vkDestroyInstance(_instance, nullptr);
 
@@ -520,6 +521,24 @@ void HelloTrangle::createRenderPass()
     renderPassInfo.subpassCount = 1;
     renderPassInfo.pSubpasses = &subpass;
 
+    // 子通道依赖
+    VkSubpassDependency dependency{};
+    // 指定依赖项和被依赖子通道的索引
+    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependency.dstSubpass = 0;
+
+    // 指定要等待的操作以及这些操作发生的阶段
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.srcAccessMask = 0;
+
+    // 等待此操作的操作位于颜色附件阶段，并且涉及颜色附件的写入
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+    // 指定依赖项数组
+    renderPassInfo.dependencyCount = 1;
+    renderPassInfo.pDependencies = &dependency;
+
     VkResult ret =
         vkCreateRenderPass(_device, &renderPassInfo, nullptr, &_renderPass);
     if (ret != VK_SUCCESS) {
@@ -788,6 +807,8 @@ void HelloTrangle::createSyncObjects()
     // 创建栅栏信息
     VkFenceCreateInfo fenceInfo{};
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    // 创建处于已发出信号状态的栅栏
+    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
     VkResult ret = vkCreateSemaphore(_device, &semaphoreInfo, nullptr,
                                      &_imageAvailableSemaphore);
@@ -886,6 +907,70 @@ void HelloTrangle::recordCommandBuffer(VkCommandBuffer commandBuffer,
 
 void HelloTrangle::drawFrame()
 {
+    // 等待前一帧完成，以便可以使用命令缓冲区和信号量
+    vkWaitForFences(_device, 1, &_inFlightFence, VK_TRUE, UINT64_MAX);
+
+    // 调用手动将栅栏重置为未发出信号的状态
+    vkResetFences(_device, 1, &_inFlightFence);
+
+    // 从交换链获取图像
+    uint32_t imageIndex;
+    vkAcquireNextImageKHR(_device, _swapChain, UINT64_MAX,
+                          _imageAvailableSemaphore, VK_NULL_HANDLE,
+                          &imageIndex);
+
+    // 记录命令缓冲区
+    vkResetCommandBuffer(_commandBuffer, 0);
+    recordCommandBuffer(_commandBuffer, imageIndex);
+
+    // 提交命令缓冲区
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+    VkSemaphore waitSemaphores[] = {_imageAvailableSemaphore};
+    VkPipelineStageFlags waitStages[] = {
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+
+    // 指定在执行开始之前要等待哪些信号量以及在管道的哪个阶段等待
+    submitInfo.waitSemaphoreCount = 1;
+    submitInfo.pWaitSemaphores = waitSemaphores;
+    submitInfo.pWaitDstStageMask = waitStages;
+
+    // 指定要实际提交执行的命令缓冲区
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &_commandBuffer;
+
+    // 在命令缓冲区执行完成后要发出信号的信号量
+    VkSemaphore signalSemaphores[] = {_renderFinishedSemaphore};
+    submitInfo.signalSemaphoreCount = 1;
+    submitInfo.pSignalSemaphores = signalSemaphores;
+
+    // 将命令缓冲区提交到图形队列
+    VkResult ret =
+        vkQueueSubmit(_graphicsQueue, 1, &submitInfo, _inFlightFence);
+    if (ret != VK_SUCCESS) {
+        throw std::runtime_error("提交绘制命令缓冲区失败!");
+    }
+
+    // 将结果提交回交换链
+    VkPresentInfoKHR presentInfo{};
+    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+
+    // 指定在演示发生之前要等待的信号量，就像 VkSubmitInfo 一样
+    presentInfo.waitSemaphoreCount = 1;
+    presentInfo.pWaitSemaphores = signalSemaphores;
+
+    // 指定要向其显示图像的交换链以及每个交换链的图像索引
+    VkSwapchainKHR swapChains[] = {_swapChain};
+    presentInfo.swapchainCount = 1;
+    presentInfo.pSwapchains = swapChains;
+    presentInfo.pImageIndices = &imageIndex;
+    // 可选的参数允许指定一个 VkResult
+    // 值数组，以检查每个单独的交换链演示是否成功
+    presentInfo.pResults = nullptr; // Optional
+
+    // 提交将图像呈现给交换链的请求
+    vkQueuePresentKHR(_presentQueue, &presentInfo);
 }
 
 VkShaderModule HelloTrangle::createShaderModule(const std::vector<char> &code)
