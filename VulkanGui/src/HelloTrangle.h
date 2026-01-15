@@ -113,6 +113,13 @@ private:
     // 命令缓冲区记录
     void recordCommandBuffer(VkCommandBuffer commandBuffer,
                              uint32_t imageIndex);
+
+    // 清理交换链
+    void cleanupSwapChain();
+
+    // 重新创建交换链
+    void recreateSwapChain();
+
     // 渲染和呈现
     void drawFrame();
 
@@ -160,6 +167,10 @@ private:
                   VkDebugUtilsMessageTypeFlagsEXT messageType,
                   const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
                   void *pUserData);
+
+    // glfw 窗口大小函数回调
+    static void framebufferResizeCallback(GLFWwindow *window, int width,
+                                          int height);
 
 private:
     // glfw窗口
@@ -234,6 +245,9 @@ private:
 
     // 栅栏对象
     std::vector<VkFence> _inFlightFences;
+
+    // 标记是否发生了调整大小的操作
+    bool _framebufferResized = false;
 
     // 当前帧索引
     uint32_t _currentFrame = 0;

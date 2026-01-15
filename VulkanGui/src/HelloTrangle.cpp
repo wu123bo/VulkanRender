@@ -42,8 +42,12 @@ void HelloTrangle::initWindow()
     // 创建窗口
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+    // glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
     _window = glfwCreateWindow(_width, _height, "Vulkan", nullptr, nullptr);
+
+    // 注册glfw窗口回调函数
+    glfwSetWindowUserPointer(_window, this);
+    glfwSetFramebufferSizeCallback(_window, framebufferResizeCallback);
 }
 
 void HelloTrangle::initVulkan()
@@ -104,6 +108,16 @@ void HelloTrangle::mainLoop()
 
 void HelloTrangle::cleanup()
 {
+    // 清理交换链 帧缓冲区 图像视图
+    cleanupSwapChain();
+
+    // 清理渲染管线
+    vkDestroyPipeline(_device, _graphicsPipeline, nullptr);
+    // 清理管线布局
+    vkDestroyPipelineLayout(_device, _pipelineLayout, nullptr);
+    // 清理渲染通道
+    vkDestroyRenderPass(_device, _renderPass, nullptr);
+
     for (size_t i = 0; i < _MAX_FRAMES_IN_FLIGHT; i++) {
         // 清理信号量
         vkDestroySemaphore(_device, _imageAvailableSemaphores[i], nullptr);
@@ -117,25 +131,6 @@ void HelloTrangle::cleanup()
     // 当我们释放命令池时，命令缓冲区会被释放，因此对于命令缓冲区清理，无需执行任何额外操作
     vkDestroyCommandPool(_device, _commandPool, nullptr);
 
-    // 清理帧缓冲区
-    for (auto framebuffer : _swapChainFramebuffers) {
-        vkDestroyFramebuffer(_device, framebuffer, nullptr);
-    }
-
-    // 清理渲染管线
-    vkDestroyPipeline(_device, _graphicsPipeline, nullptr);
-    // 清理管线布局
-    vkDestroyPipelineLayout(_device, _pipelineLayout, nullptr);
-    // 清理渲染通道
-    vkDestroyRenderPass(_device, _renderPass, nullptr);
-
-    // 清理图像视图
-    for (auto imageView : _swapChainImageViews) {
-        vkDestroyImageView(_device, imageView, nullptr);
-    }
-
-    // 清理交换链
-    vkDestroySwapchainKHR(_device, _swapChain, nullptr);
     // 清理逻辑设备
     vkDestroyDevice(_device, nullptr);
 
@@ -421,7 +416,7 @@ void HelloTrangle::createSwapChain()
     // clipped 成员设置为 VK_TRUE，则意味着我们不关心被遮挡像素的颜色
     createInfo.clipped = VK_TRUE;
 
-    // 需要从头开始重新创建交换链，并且必须在此字段中指定对旧交换链的引用
+    // 从头开始重新创建交换链，并且必须在此字段中指定对旧交换链的引用
     createInfo.oldSwapchain = VK_NULL_HANDLE;
 
     // 创建交换链
@@ -877,7 +872,7 @@ void HelloTrangle::recordCommandBuffer(VkCommandBuffer commandBuffer,
     renderPassInfo.renderArea.extent = _swapChainExtent;
 
     // 参数定义了用于 VK_ATTACHMENT_LOAD_OP_CLEAR 的清除值
-    VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
+    VkClearValue clearColor = {{{1.0f, 1.0f, 1.0f, 1.0f}}};
     renderPassInfo.clearValueCount = 1;
     renderPassInfo.pClearValues = &clearColor;
 
@@ -924,20 +919,78 @@ void HelloTrangle::recordCommandBuffer(VkCommandBuffer commandBuffer,
     }
 }
 
+void HelloTrangle::cleanupSwapChain()
+{
+    // 清理帧缓冲区
+    for (auto framebuffer : _swapChainFramebuffers) {
+        vkDestroyFramebuffer(_device, framebuffer, nullptr);
+    }
+
+    // 清理图像视图
+    for (auto imageView : _swapChainImageViews) {
+        vkDestroyImageView(_device, imageView, nullptr);
+    }
+
+    // 清理交换链
+    vkDestroySwapchainKHR(_device, _swapChain, nullptr);
+}
+
+void HelloTrangle::recreateSwapChain()
+{
+    // 处理最小化的情况
+    int width = 0, height = 0;
+    glfwGetFramebufferSize(_window, &width, &height);
+    while (width == 0 || height == 0) {
+        glfwGetFramebufferSize(_window, &width, &height);
+        glfwWaitEvents();
+    }
+
+    // 等待 GPU 完全空闲
+    vkDeviceWaitIdle(_device);
+
+    // 清理交换链
+    cleanupSwapChain();
+
+    // 创建交换链
+    createSwapChain();
+
+    // 创建图像视图
+    createImageViews();
+
+    // 创建帧缓冲区
+    createFramebuffers();
+}
+
 void HelloTrangle::drawFrame()
 {
     // 等待前一帧完成，以便可以使用命令缓冲区和信号量
     vkWaitForFences(_device, 1, &_inFlightFences[_currentFrame], VK_TRUE,
                     UINT64_MAX);
 
-    // 调用手动将栅栏重置为未发出信号的状态
-    vkResetFences(_device, 1, &_inFlightFences[_currentFrame]);
+    uint32_t imageIndex;
 
     // 从交换链获取图像
-    uint32_t imageIndex;
-    vkAcquireNextImageKHR(_device, _swapChain, UINT64_MAX,
-                          _imageAvailableSemaphores[_currentFrame],
-                          VK_NULL_HANDLE, &imageIndex);
+    // 返回值判断交换链是否无法再用于渲染
+    VkResult ret = vkAcquireNextImageKHR(
+        _device, _swapChain, UINT64_MAX,
+        _imageAvailableSemaphores[_currentFrame], VK_NULL_HANDLE, &imageIndex);
+
+    // VK_ERROR_OUT_OF_DATE_KHR
+    // 交换链已与表面不兼容，无法再用于渲染。通常在窗口调整大小后发生
+
+    //  VK_SUBOPTIMAL_KHR
+    // 交换链仍然可以成功呈现到表面，但表面属性不再完全匹配。
+    if (ret == VK_ERROR_OUT_OF_DATE_KHR) {
+        // 重建交换链
+        recreateSwapChain();
+        return;
+    } else if (ret != VK_SUCCESS && ret != VK_SUBOPTIMAL_KHR) {
+        throw std::runtime_error("获取交换链图像失败!");
+    }
+
+    // 调用手动将栅栏重置为未发出信号的状态
+    // 只有在提交工作时才重置围栏
+    vkResetFences(_device, 1, &_inFlightFences[_currentFrame]);
 
     // 记录命令缓冲区
     vkResetCommandBuffer(_commandBuffers[_currentFrame], 0);
@@ -966,8 +1019,8 @@ void HelloTrangle::drawFrame()
     submitInfo.pSignalSemaphores = signalSemaphores;
 
     // 将命令缓冲区提交到图形队列
-    VkResult ret = vkQueueSubmit(_graphicsQueue, 1, &submitInfo,
-                                 _inFlightFences[_currentFrame]);
+    ret = vkQueueSubmit(_graphicsQueue, 1, &submitInfo,
+                        _inFlightFences[_currentFrame]);
     if (ret != VK_SUCCESS) {
         throw std::runtime_error("提交绘制命令缓冲区失败!");
     }
@@ -989,8 +1042,19 @@ void HelloTrangle::drawFrame()
     // 值数组，以检查每个单独的交换链演示是否成功
     presentInfo.pResults = nullptr; // Optional
 
-    // 提交将图像呈现给交换链的请求
-    vkQueuePresentKHR(_presentQueue, &presentInfo);
+    // 提交将图像呈现给交换链的请求(和vkAcquireNextImageKHR函数返回相同的值)
+    ret = vkQueuePresentKHR(_presentQueue, &presentInfo);
+
+    // 如果交换链是次优的
+    if (ret == VK_ERROR_OUT_OF_DATE_KHR || ret == VK_SUBOPTIMAL_KHR) {
+        // 是否发生了调整大小的操作
+        _framebufferResized = false;
+
+        // 重建交换链
+        recreateSwapChain();
+    } else if (ret != VK_SUCCESS) {
+        throw std::runtime_error("无法呈现交换链图像!");
+    }
 
     // 前进到下一帧
     _currentFrame = (_currentFrame + 1) % _MAX_FRAMES_IN_FLIGHT;
@@ -1301,4 +1365,15 @@ VKAPI_ATTR VkBool32 VKAPI_CALL HelloTrangle::debugCallback(
     // 参数包含一个在回调设置期间指定的指针，允许您将自己的数据传递给它。
 
     return VK_SUCCESS;
+}
+
+void HelloTrangle::framebufferResizeCallback(GLFWwindow *window, int width,
+                                             int height)
+{
+    auto app =
+        reinterpret_cast<HelloTrangle *>(glfwGetWindowUserPointer(window));
+
+    if (nullptr != app) {
+        app->_framebufferResized = true;
+    }
 }
