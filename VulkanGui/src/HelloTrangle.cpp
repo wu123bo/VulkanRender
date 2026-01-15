@@ -548,7 +548,7 @@ void HelloTrangle::createRenderPass()
 void HelloTrangle::createGraphicsPipeline()
 {
     // 加载shader文件
-    auto vertShaderCode = readShaderFile("Shaders/vert.spv");
+    auto vertShaderCode = readShaderFile("Shaders/vertCube.spv");
     auto fragShaderCode = readShaderFile("Shaders/frag.spv");
 
     // 创建着色器模块
@@ -589,6 +589,8 @@ void HelloTrangle::createGraphicsPipeline()
     VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
     inputAssembly.sType =
         VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+
+    // 绘制方式
     inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     inputAssembly.primitiveRestartEnable = VK_FALSE;
 
@@ -903,12 +905,11 @@ void HelloTrangle::recordCommandBuffer(VkCommandBuffer commandBuffer,
     scissor.extent = _swapChainExtent; // 宽高与交换链一致
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-    // 准备好为三角形发出绘制命令
     // 顶点数量
     // 用于实例化渲染，如果不这样做，则使用 1
     // 用作顶点缓冲区的偏移量，定义了 gl_VertexIndex 的最小值
     // 用作实例化渲染的偏移量，定义了 gl_InstanceIndex 的最小值
-    vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+    vkCmdDraw(commandBuffer, 6, 1, 0, 0);
 
     // 结束渲染通道
     vkCmdEndRenderPass(commandBuffer);
