@@ -82,7 +82,7 @@ void HelloTrangle::initVulkan()
     createCommandPool();
 
     // 创建分配命令缓冲区
-    createCommandBuffer();
+    createCommandBuffers();
 
     // 创建同步对象
     createSyncObjects();
@@ -104,13 +104,17 @@ void HelloTrangle::mainLoop()
 
 void HelloTrangle::cleanup()
 {
-    // 清理信号量
-    vkDestroySemaphore(_device, _imageAvailableSemaphore, nullptr);
-    vkDestroySemaphore(_device, _renderFinishedSemaphore, nullptr);
-    // 清理栅栏
-    vkDestroyFence(_device, _inFlightFence, nullptr);
+    for (size_t i = 0; i < _MAX_FRAMES_IN_FLIGHT; i++) {
+        // 清理信号量
+        vkDestroySemaphore(_device, _imageAvailableSemaphores[i], nullptr);
+        vkDestroySemaphore(_device, _renderFinishedSemaphores[i], nullptr);
+
+        // 清理栅栏
+        vkDestroyFence(_device, _inFlightFences[i], nullptr);
+    }
 
     // 清理命令池
+    // 当我们释放命令池时，命令缓冲区会被释放，因此对于命令缓冲区清理，无需执行任何额外操作
     vkDestroyCommandPool(_device, _commandPool, nullptr);
 
     // 清理帧缓冲区
@@ -774,8 +778,11 @@ void HelloTrangle::createCommandPool()
     }
 }
 
-void HelloTrangle::createCommandBuffer()
+void HelloTrangle::createCommandBuffers()
 {
+    // 根据同时处理帧数 分配
+    _commandBuffers.resize(_MAX_FRAMES_IN_FLIGHT);
+
     // 创建分配命令缓冲区信息
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -786,12 +793,12 @@ void HelloTrangle::createCommandBuffer()
     // 指定分配的命令缓冲区是主命令缓冲区还是辅助命令缓冲区
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 
-    // 只分配一个命令缓冲区所以数量为1
-    allocInfo.commandBufferCount = 1;
+    // 分配命令缓冲区数量
+    allocInfo.commandBufferCount = _commandBuffers.size();
 
     // 创建分配命令缓冲区
     VkResult ret =
-        vkAllocateCommandBuffers(_device, &allocInfo, &_commandBuffer);
+        vkAllocateCommandBuffers(_device, &allocInfo, _commandBuffers.data());
     if (ret != VK_SUCCESS) {
         throw std::runtime_error("分配命令缓冲区失败!");
     }
@@ -799,6 +806,11 @@ void HelloTrangle::createCommandBuffer()
 
 void HelloTrangle::createSyncObjects()
 {
+    // 根据同时处理帧数 分配
+    _imageAvailableSemaphores.resize(_MAX_FRAMES_IN_FLIGHT);
+    _renderFinishedSemaphores.resize(_MAX_FRAMES_IN_FLIGHT);
+    _inFlightFences.resize(_MAX_FRAMES_IN_FLIGHT);
+
     // 创建信号量信息
     VkSemaphoreCreateInfo semaphoreInfo{};
     // 除了 sType 之外没有任何必需的字段
@@ -810,21 +822,28 @@ void HelloTrangle::createSyncObjects()
     // 创建处于已发出信号状态的栅栏
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-    VkResult ret = vkCreateSemaphore(_device, &semaphoreInfo, nullptr,
-                                     &_imageAvailableSemaphore);
-    if (ret != VK_SUCCESS) {
-        throw std::runtime_error("创建信号量失败!");
-    }
+    // 创建_MAX_FRAMES_IN_FLIGHT个信号量和栅栏
+    for (size_t i = 0; i < _MAX_FRAMES_IN_FLIGHT; i++) {
 
-    ret = vkCreateSemaphore(_device, &semaphoreInfo, nullptr,
-                            &_renderFinishedSemaphore);
-    if (ret != VK_SUCCESS) {
-        throw std::runtime_error("创建信号量失败!");
-    }
+        // 创建图像可用信号量
+        VkResult ret = vkCreateSemaphore(_device, &semaphoreInfo, nullptr,
+                                         &_imageAvailableSemaphores[i]);
+        if (ret != VK_SUCCESS) {
+            throw std::runtime_error("创建信号量失败!");
+        }
 
-    ret = vkCreateFence(_device, &fenceInfo, nullptr, &_inFlightFence);
-    if (ret != VK_SUCCESS) {
-        throw std::runtime_error("创建栅栏对象失败!");
+        // 创建渲染完成信号量
+        ret = vkCreateSemaphore(_device, &semaphoreInfo, nullptr,
+                                &_renderFinishedSemaphores[i]);
+        if (ret != VK_SUCCESS) {
+            throw std::runtime_error("创建信号量失败!");
+        }
+
+        // 栅栏对象
+        ret = vkCreateFence(_device, &fenceInfo, nullptr, &_inFlightFences[i]);
+        if (ret != VK_SUCCESS) {
+            throw std::runtime_error("创建栅栏对象失败!");
+        }
     }
 }
 
@@ -840,7 +859,7 @@ void HelloTrangle::recordCommandBuffer(VkCommandBuffer commandBuffer,
     beginInfo.pInheritanceInfo = nullptr; // 可选
 
     // 创建命令缓冲区记录
-    VkResult ret = vkBeginCommandBuffer(_commandBuffer, &beginInfo);
+    VkResult ret = vkBeginCommandBuffer(commandBuffer, &beginInfo);
     if (ret != VK_SUCCESS) {
         throw std::runtime_error("无法开始录制命令缓冲区!");
     }
@@ -865,12 +884,12 @@ void HelloTrangle::recordCommandBuffer(VkCommandBuffer commandBuffer,
     // 渲染通道开始
     //  VK_SUBPASS_CONTENTS_INLINE
     //  渲染通道命令将嵌入到主命令缓冲区本身中，并且不会执行辅助命令缓冲区
-    vkCmdBeginRenderPass(_commandBuffer, &renderPassInfo,
+    vkCmdBeginRenderPass(commandBuffer, &renderPassInfo,
                          VK_SUBPASS_CONTENTS_INLINE);
 
     // 绑定图形管线
     // 第二个参数指定管线对象是图形管线还是计算管线
-    vkCmdBindPipeline(_commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       _graphicsPipeline);
 
     // 为此管线指定了视口和剪刀状态为动态 发出绘制命令之前在命令缓冲区中设置它们
@@ -882,7 +901,7 @@ void HelloTrangle::recordCommandBuffer(VkCommandBuffer commandBuffer,
     viewport.minDepth = 0.0f; // 深度最小值
     viewport.maxDepth = 1.0f; // 深度最大值
 
-    vkCmdSetViewport(_commandBuffer, 0, 1, &viewport);
+    vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 
     VkRect2D scissor{};
     scissor.offset = {0, 0};           // 剪裁矩形左上角
@@ -894,12 +913,12 @@ void HelloTrangle::recordCommandBuffer(VkCommandBuffer commandBuffer,
     // 用于实例化渲染，如果不这样做，则使用 1
     // 用作顶点缓冲区的偏移量，定义了 gl_VertexIndex 的最小值
     // 用作实例化渲染的偏移量，定义了 gl_InstanceIndex 的最小值
-    vkCmdDraw(_commandBuffer, 3, 1, 0, 0);
+    vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 
     // 结束渲染通道
-    vkCmdEndRenderPass(_commandBuffer);
+    vkCmdEndRenderPass(commandBuffer);
 
-    ret = vkEndCommandBuffer(_commandBuffer);
+    ret = vkEndCommandBuffer(commandBuffer);
     if (ret != VK_SUCCESS) {
         throw std::runtime_error("无法记录命令缓冲区!");
     }
@@ -908,26 +927,27 @@ void HelloTrangle::recordCommandBuffer(VkCommandBuffer commandBuffer,
 void HelloTrangle::drawFrame()
 {
     // 等待前一帧完成，以便可以使用命令缓冲区和信号量
-    vkWaitForFences(_device, 1, &_inFlightFence, VK_TRUE, UINT64_MAX);
+    vkWaitForFences(_device, 1, &_inFlightFences[_currentFrame], VK_TRUE,
+                    UINT64_MAX);
 
     // 调用手动将栅栏重置为未发出信号的状态
-    vkResetFences(_device, 1, &_inFlightFence);
+    vkResetFences(_device, 1, &_inFlightFences[_currentFrame]);
 
     // 从交换链获取图像
     uint32_t imageIndex;
     vkAcquireNextImageKHR(_device, _swapChain, UINT64_MAX,
-                          _imageAvailableSemaphore, VK_NULL_HANDLE,
-                          &imageIndex);
+                          _imageAvailableSemaphores[_currentFrame],
+                          VK_NULL_HANDLE, &imageIndex);
 
     // 记录命令缓冲区
-    vkResetCommandBuffer(_commandBuffer, 0);
-    recordCommandBuffer(_commandBuffer, imageIndex);
+    vkResetCommandBuffer(_commandBuffers[_currentFrame], 0);
+    recordCommandBuffer(_commandBuffers[_currentFrame], imageIndex);
 
     // 提交命令缓冲区
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-    VkSemaphore waitSemaphores[] = {_imageAvailableSemaphore};
+    VkSemaphore waitSemaphores[] = {_imageAvailableSemaphores[_currentFrame]};
     VkPipelineStageFlags waitStages[] = {
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
 
@@ -938,16 +958,16 @@ void HelloTrangle::drawFrame()
 
     // 指定要实际提交执行的命令缓冲区
     submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &_commandBuffer;
+    submitInfo.pCommandBuffers = &_commandBuffers[_currentFrame];
 
     // 在命令缓冲区执行完成后要发出信号的信号量
-    VkSemaphore signalSemaphores[] = {_renderFinishedSemaphore};
+    VkSemaphore signalSemaphores[] = {_renderFinishedSemaphores[_currentFrame]};
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
     // 将命令缓冲区提交到图形队列
-    VkResult ret =
-        vkQueueSubmit(_graphicsQueue, 1, &submitInfo, _inFlightFence);
+    VkResult ret = vkQueueSubmit(_graphicsQueue, 1, &submitInfo,
+                                 _inFlightFences[_currentFrame]);
     if (ret != VK_SUCCESS) {
         throw std::runtime_error("提交绘制命令缓冲区失败!");
     }
@@ -971,6 +991,9 @@ void HelloTrangle::drawFrame()
 
     // 提交将图像呈现给交换链的请求
     vkQueuePresentKHR(_presentQueue, &presentInfo);
+
+    // 前进到下一帧
+    _currentFrame = (_currentFrame + 1) % _MAX_FRAMES_IN_FLIGHT;
 }
 
 VkShaderModule HelloTrangle::createShaderModule(const std::vector<char> &code)

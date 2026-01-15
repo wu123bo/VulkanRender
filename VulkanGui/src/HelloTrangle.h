@@ -105,7 +105,7 @@ private:
     void createCommandPool();
 
     // 创建分配命令缓冲区
-    void createCommandBuffer();
+    void createCommandBuffers();
 
     // 创建同步对象
     void createSyncObjects();
@@ -221,16 +221,26 @@ private:
     // 命令池
     VkCommandPool _commandPool;
 
+    /*每一帧都应该有自己的命令缓冲区、信号量和栅栏 */
+
     // 分配命令缓冲区
-    VkCommandBuffer _commandBuffer;
+    std::vector<VkCommandBuffer> _commandBuffers;
 
-    // 存储信号量
-    VkSemaphore _imageAvailableSemaphore;
+    // 图像可用信号量
+    std::vector<VkSemaphore> _imageAvailableSemaphores;
 
-    VkSemaphore _renderFinishedSemaphore;
+    // 渲染完成信号量
+    std::vector<VkSemaphore> _renderFinishedSemaphores;
 
     // 栅栏对象
-    VkFence _inFlightFence;
+    std::vector<VkFence> _inFlightFences;
+
+    // 当前帧索引
+    uint32_t _currentFrame = 0;
+
+private:
+    // 同时处理多少帧的数量
+    const int _MAX_FRAMES_IN_FLIGHT = 2;
 
 private:
     // 物理设备支持扩展
