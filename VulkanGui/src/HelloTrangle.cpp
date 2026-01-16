@@ -797,22 +797,65 @@ void HelloTrangle::createCommandPool()
 
 void HelloTrangle::createVertexBuffer()
 {
+    // 计算顶点数据内存大小
+    VkDeviceSize bufferSize = sizeof(_vertices[0]) * _vertices.size();
+
+    // 暂存缓冲区
+    VkBuffer stagingBuffer;
+    VkDeviceMemory stagingBufferMemory;
+
+    // 创建暂存缓冲区
+    createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+                     | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                 stagingBuffer, stagingBufferMemory);
+
+    // 填充顶点缓冲区
+    // 映射内存的指针
+    void *data = nullptr;
+    // 映射内存
+    vkMapMemory(_device, stagingBufferMemory, 0, bufferSize, 0, &data);
+
+    // 将顶点数据 memcpy 到映射内存
+    memcpy(data, _vertices.data(), (size_t)bufferSize);
+
+    // 取消映射
+    vkUnmapMemory(_device, stagingBufferMemory);
+
+    // 创建缓冲区
+    createBuffer(bufferSize,
+                 VK_BUFFER_USAGE_TRANSFER_DST_BIT
+                     | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, _vertexBuffer,
+                 _vertexBufferMempry);
+
+    // 拷贝缓冲区
+    copyBuffer(stagingBuffer, _vertexBuffer, bufferSize);
+
+    // 将数据从暂存缓冲区复制到设备缓冲区后，清理暂存缓冲区
+    vkDestroyBuffer(_device, stagingBuffer, nullptr);
+    vkFreeMemory(_device, stagingBufferMemory, nullptr);
+}
+
+void HelloTrangle::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
+                                VkMemoryPropertyFlags properties,
+                                VkBuffer &buffer, VkDeviceMemory &bufferMemory)
+{
     // 顶点缓冲区创建信息
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 
     // 为单位指定缓冲区的大小
-    bufferInfo.size = sizeof(_vertices[0]) * _vertices.size();
+    bufferInfo.size = size;
 
     // 指示缓冲区中的数据将用于哪些目的
-    bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    bufferInfo.usage = usage;
 
     // 缓冲区也可以由特定的队列族拥有，或者同时在多个队列族之间共享
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
     // 创建顶点缓冲区创建信息
-    VkResult ret =
-        vkCreateBuffer(_device, &bufferInfo, nullptr, &_vertexBuffer);
+    VkResult ret = vkCreateBuffer(_device, &bufferInfo, nullptr, &buffer);
     if (ret != VK_SUCCESS) {
         throw std::runtime_error("创建顶点缓冲区失败!");
     }
@@ -823,7 +866,7 @@ void HelloTrangle::createVertexBuffer()
     // alignment：缓冲区在内存分配区域中开始的字节偏移量，取决于 bufferInfo
     // .usage 和 bufferInfo.flags。
     //  memoryTypeBits：适用于该缓冲区的内存类型的位域。
-    vkGetBufferMemoryRequirements(_device, _vertexBuffer, &memRequirements);
+    vkGetBufferMemoryRequirements(_device, buffer, &memRequirements);
 
     // 内存分配信息
     VkMemoryAllocateInfo allocInfo{};
@@ -832,31 +875,61 @@ void HelloTrangle::createVertexBuffer()
     allocInfo.allocationSize = memRequirements.size;
     // 合适的内存类型
     allocInfo.memoryTypeIndex =
-        findMemoryType(memRequirements.memoryTypeBits,
-                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
-                           | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        findMemoryType(memRequirements.memoryTypeBits, properties);
 
     // 顶点缓冲区分配内存
-    ret = vkAllocateMemory(_device, &allocInfo, nullptr, &_vertexBufferMempry);
+    ret = vkAllocateMemory(_device, &allocInfo, nullptr, &bufferMemory);
     if (ret != VK_SUCCESS) {
         throw std::runtime_error("分配顶点缓冲区内存失败!");
     }
 
     // 分配成功 将此内存与缓冲区关联起来
-    vkBindBufferMemory(_device, _vertexBuffer, _vertexBufferMempry, 0);
+    vkBindBufferMemory(_device, buffer, bufferMemory, 0);
+}
 
-    /*填充顶点缓冲区*/
+void HelloTrangle::copyBuffer(VkBuffer srcBuffer, VkBuffer destBuffer,
+                              VkDeviceSize size)
+{
+    // 内存传输操作使用命令缓冲区执行，就像绘制命令一样。
+    // 因此，我们必须首先分配一个临时命令缓冲区
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandPool = _commandPool;
+    allocInfo.commandBufferCount = 1;
 
-    // 映射内存的指针
-    void *data = nullptr;
-    // 映射内存
-    vkMapMemory(_device, _vertexBufferMempry, 0, bufferInfo.size, 0, &data);
+    // 创建分配命令缓冲区
+    VkCommandBuffer commandBuffer;
+    vkAllocateCommandBuffers(_device, &allocInfo, &commandBuffer);
 
-    // 将顶点数据 memcpy 到映射内存
-    memcpy(data, _vertices.data(), (size_t)bufferInfo.size);
+    // 立即开始记录命令缓冲区
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vkBeginCommandBuffer(commandBuffer, &beginInfo);
 
-    // 取消映射
-    vkUnmapMemory(_device, _vertexBufferMempry);
+    // 命令传输
+    VkBufferCopy copyRegion{};
+    copyRegion.srcOffset = 0;
+    copyRegion.srcOffset = 0;
+    copyRegion.size = size;
+    vkCmdCopyBuffer(commandBuffer, srcBuffer, destBuffer, 1, &copyRegion);
+
+    // 停止记录
+    vkEndCommandBuffer(commandBuffer);
+
+    // 执行命令缓冲区以完成传输
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &commandBuffer;
+    vkQueueSubmit(_graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+
+    // 等待传输队列使用 vkQueueWaitIdle 变为闲置状态
+    vkQueueWaitIdle(_graphicsQueue);
+
+    // 清理用于传输操作的命令缓冲区
+    vkFreeCommandBuffers(_device, _commandPool, 1, &commandBuffer);
 }
 
 uint32_t HelloTrangle::findMemoryType(uint32_t typeFilter,

@@ -104,8 +104,16 @@ private:
     // 创建命令池
     void createCommandPool();
 
-    // 创建顶点缓冲区
+    // 创建暂存缓冲区拷贝
     void createVertexBuffer();
+
+    // 创建缓冲区
+    void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
+                      VkMemoryPropertyFlags properties, VkBuffer &buffer,
+                      VkDeviceMemory &bufferMemory);
+
+    // 拷贝缓冲区
+    void copyBuffer(VkBuffer srcBuffer, VkBuffer destBuffer, VkDeviceSize size);
 
     // 查找内存类型
     uint32_t findMemoryType(uint32_t typeFilter,
