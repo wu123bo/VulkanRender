@@ -88,6 +88,9 @@ void HelloTrangle::initVulkan()
     // 创建顶点数据缓冲区
     createVertexBuffer();
 
+    // 创建索引缓冲区
+    createIndexBuffer();
+
     // 创建分配命令缓冲区
     createCommandBuffers();
 
@@ -118,7 +121,13 @@ void HelloTrangle::cleanup()
     vkDestroyBuffer(_device, _vertexBuffer, nullptr);
 
     // 释放顶点数据缓冲区内存
-    vkFreeMemory(_device, _vertexBufferMempry, nullptr);
+    vkFreeMemory(_device, _vertexBufferMemory, nullptr);
+
+    // 清理索引数据缓冲区
+    vkDestroyBuffer(_device, _indexBuffer, nullptr);
+
+    // 释放索引数据缓冲区内存
+    vkFreeMemory(_device, _indexBufferMemory, nullptr);
 
     // 清理渲染管线
     vkDestroyPipeline(_device, _graphicsPipeline, nullptr);
@@ -827,10 +836,50 @@ void HelloTrangle::createVertexBuffer()
                  VK_BUFFER_USAGE_TRANSFER_DST_BIT
                      | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
                  VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, _vertexBuffer,
-                 _vertexBufferMempry);
+                 _vertexBufferMemory);
 
     // 拷贝缓冲区
     copyBuffer(stagingBuffer, _vertexBuffer, bufferSize);
+
+    // 将数据从暂存缓冲区复制到设备缓冲区后，清理暂存缓冲区
+    vkDestroyBuffer(_device, stagingBuffer, nullptr);
+    vkFreeMemory(_device, stagingBufferMemory, nullptr);
+}
+
+void HelloTrangle::createIndexBuffer()
+{
+    // 计算索引数据内存大小
+    VkDeviceSize bufferSize = sizeof(_indices[0]) * _indices.size();
+
+    // 暂存缓冲区
+    VkBuffer stagingBuffer;
+    VkDeviceMemory stagingBufferMemory;
+
+    // 创建暂存缓冲区
+    createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+                     | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                 stagingBuffer, stagingBufferMemory);
+
+    // 映射内存的指针
+    void *data = nullptr;
+    // 映射内存
+    vkMapMemory(_device, stagingBufferMemory, 0, bufferSize, 0, &data);
+
+    // 将索引数据 memcpy 到映射内存
+    memcpy(data, _indices.data(), (size_t)bufferSize);
+
+    // 取消映射
+    vkUnmapMemory(_device, stagingBufferMemory);
+
+    // 创建缓冲区
+    createBuffer(
+        bufferSize,
+        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, _indexBuffer, _indexBufferMemory);
+
+    // 拷贝缓冲区
+    copyBuffer(stagingBuffer, _indexBuffer, bufferSize);
 
     // 将数据从暂存缓冲区复制到设备缓冲区后，清理暂存缓冲区
     vkDestroyBuffer(_device, stagingBuffer, nullptr);
@@ -1070,11 +1119,6 @@ void HelloTrangle::recordCommandBuffer(VkCommandBuffer commandBuffer,
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       _graphicsPipeline);
 
-    // 绑定顶点缓冲区
-    VkBuffer vertexBuffers[] = {_vertexBuffer};
-    VkDeviceSize offsets[] = {0};
-    vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-
     // 为此管线指定了视口和剪刀状态为动态 发出绘制命令之前在命令缓冲区中设置它们
     VkViewport viewport{};
     viewport.x = 0.0f; // 左上角 X 坐标
@@ -1091,11 +1135,24 @@ void HelloTrangle::recordCommandBuffer(VkCommandBuffer commandBuffer,
     scissor.extent = _swapChainExtent; // 宽高与交换链一致
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
+    // 绑定顶点缓冲区
+    VkBuffer vertexBuffers[] = {_vertexBuffer};
+    VkDeviceSize offsets[] = {0};
+    vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+
+    // 绑定索引缓冲区
+    vkCmdBindIndexBuffer(commandBuffer, _indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+
     // 顶点数量
     // 用于实例化渲染，如果不这样做，则使用 1
     // 用作顶点缓冲区的偏移量，定义了 gl_VertexIndex 的最小值
     // 用作实例化渲染的偏移量，定义了 gl_InstanceIndex 的最小值
-    vkCmdDraw(commandBuffer, static_cast<uint32_t>(_vertices.size()), 1, 0, 0);
+    // vkCmdDraw(commandBuffer, static_cast<uint32_t>(_vertices.size()), 1, 0,
+    // 0);
+
+    // 索引绘制
+    vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(_indices.size()), 1,
+                     0, 0, 0);
 
     // 结束渲染通道
     vkCmdEndRenderPass(commandBuffer);

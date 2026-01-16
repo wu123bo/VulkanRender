@@ -104,8 +104,11 @@ private:
     // 创建命令池
     void createCommandPool();
 
-    // 创建暂存缓冲区拷贝
+    // 创建顶点缓冲区
     void createVertexBuffer();
+
+    // 创建索引缓冲区
+    void createIndexBuffer();
 
     // 创建缓冲区
     void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
@@ -253,7 +256,13 @@ private:
     VkBuffer _vertexBuffer;
 
     // 顶点缓冲区内存
-    VkDeviceMemory _vertexBufferMempry;
+    VkDeviceMemory _vertexBufferMemory;
+
+    // 索引缓冲区
+    VkBuffer _indexBuffer;
+
+    // 索引缓冲区内存
+    VkDeviceMemory _indexBufferMemory;
 
     // 分配命令缓冲区
     std::vector<VkCommandBuffer> _commandBuffers;
@@ -278,18 +287,14 @@ private:
     const int _MAX_FRAMES_IN_FLIGHT = 2;
 
 private:
-    // 顶点坐标 颜色值
-    const std::vector<VERTEX> _vertices = {
-        // 三角形 1
-        {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-        {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
-        {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+    // 绘制索引
+    const std::vector<uint16_t> _indices = {0, 1, 2, 2, 3, 0};
 
-        // 三角形 2
-        {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-        {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
-        {{-0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
-    };
+    // 顶点坐标 颜色值
+    const std::vector<VERTEX> _vertices = {{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+                                           {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
+                                           {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+                                           {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}};
 
 private:
     // 物理设备支持扩展
