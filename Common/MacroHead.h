@@ -44,9 +44,10 @@ typedef glm::mat4 MAT_4;
 // 矩阵信息结构体
 struct UNIFORMMVP
 {
-    MAT_4 model;
-    MAT_4 view;
-    MAT_4 proj;
+    // alignas(16) 字节对齐 必须是16的倍数
+    alignas(16) MAT_4 model;
+    alignas(16) MAT_4 view;
+    alignas(16) MAT_4 proj;
 };
 
 // 顶点坐标颜色结构体
