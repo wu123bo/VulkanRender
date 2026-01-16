@@ -76,6 +76,9 @@ void HelloTrangle::initVulkan()
     // 创建渲染通道
     createRenderPass();
 
+    // 创建描述符集布局
+    createDescriptorSetLayout();
+
     // 创建图形管线
     createGraphicsPipeline();
 
@@ -90,6 +93,15 @@ void HelloTrangle::initVulkan()
 
     // 创建索引缓冲区
     createIndexBuffer();
+
+    // 创建uniform缓冲区
+    createUniformBuffers();
+
+    // 创建描述符池
+    createDescriptorPool();
+
+    // 创建描述符集合
+    createDescriptorSets();
 
     // 创建分配命令缓冲区
     createCommandBuffers();
@@ -117,6 +129,18 @@ void HelloTrangle::cleanup()
     // 清理交换链 帧缓冲区 图像视图
     cleanupSwapChain();
 
+    // 清理uniform缓冲区
+    for (size_t i = 0; i < _MAX_FRAMES_IN_FLIGHT; i++) {
+        vkDestroyBuffer(_device, _uniformBuffers[i], nullptr);
+        vkFreeMemory(_device, _uniformBuffersMemory[i], nullptr);
+    }
+
+    // 清理描述符池句柄
+    vkDestroyDescriptorPool(_device, _descriptorPool, nullptr);
+
+    // 清理描述符集布局
+    vkDestroyDescriptorSetLayout(_device, _descriptorSetLayout, nullptr);
+
     // 清理顶点数据缓冲区
     vkDestroyBuffer(_device, _vertexBuffer, nullptr);
 
@@ -131,8 +155,10 @@ void HelloTrangle::cleanup()
 
     // 清理渲染管线
     vkDestroyPipeline(_device, _graphicsPipeline, nullptr);
+
     // 清理管线布局
     vkDestroyPipelineLayout(_device, _pipelineLayout, nullptr);
+
     // 清理渲染通道
     vkDestroyRenderPass(_device, _renderPass, nullptr);
 
@@ -160,6 +186,7 @@ void HelloTrangle::cleanup()
 
     // 清理窗口表面资源
     vkDestroySurfaceKHR(_instance, _surface, nullptr);
+
     // 清理vulkan实例
     vkDestroyInstance(_instance, nullptr);
 
@@ -563,10 +590,39 @@ void HelloTrangle::createRenderPass()
     }
 }
 
+void HelloTrangle::createDescriptorSetLayout()
+{
+    // 描述符集布局信息
+    VkDescriptorSetLayoutBinding uboLayoutBinding{};
+    // shader里面的绑定ID
+    uboLayoutBinding.binding = 0;
+    // 描述符的类型
+    uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    // 缓冲区对象的数组中值的个数
+    uboLayoutBinding.descriptorCount = 1;
+    // 指定在哪些着色器阶段将引用描述符
+    uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    // 字段仅与图像采样相关的描述符相关
+    uboLayoutBinding.pImmutableSamplers = nullptr; // 可选
+
+    // 描述符集布局创建信息
+    VkDescriptorSetLayoutCreateInfo layoutInfo{};
+    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layoutInfo.bindingCount = 1;
+    layoutInfo.pBindings = &uboLayoutBinding;
+
+    // 创建描述符集布局
+    VkResult ret = vkCreateDescriptorSetLayout(_device, &layoutInfo, nullptr,
+                                               &_descriptorSetLayout);
+    if (ret != VK_SUCCESS) {
+        throw std::runtime_error("创建描述符集布局失败!");
+    }
+}
+
 void HelloTrangle::createGraphicsPipeline()
 {
     // 加载shader文件
-    auto vertShaderCode = readShaderFile("Shaders/vertInVertex.spv");
+    auto vertShaderCode = readShaderFile("Shaders/vertInVertexMVP.spv");
     auto fragShaderCode = readShaderFile("Shaders/frag.spv");
 
     // 创建着色器模块
@@ -644,7 +700,7 @@ void HelloTrangle::createGraphicsPipeline()
     // 面剔除类型
     rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
     // 正面的面的顶点顺序，可以是顺时针或逆时针
-    rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+    rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     // 光栅化器可以通过添加常量值或根据片段的斜率来偏移深度值
     rasterizer.depthBiasEnable = VK_FALSE;
     rasterizer.depthBiasConstantFactor = 0.0f;
@@ -697,8 +753,9 @@ void HelloTrangle::createGraphicsPipeline()
     // 创建管线布局信息
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = 0;
-    pipelineLayoutInfo.pSetLayouts = nullptr;
+    // 绑定描述符集布局
+    pipelineLayoutInfo.setLayoutCount = 1;
+    pipelineLayoutInfo.pSetLayouts = &_descriptorSetLayout;
     pipelineLayoutInfo.pushConstantRangeCount = 0;
     pipelineLayoutInfo.pPushConstantRanges = nullptr;
 
@@ -884,6 +941,116 @@ void HelloTrangle::createIndexBuffer()
     // 将数据从暂存缓冲区复制到设备缓冲区后，清理暂存缓冲区
     vkDestroyBuffer(_device, stagingBuffer, nullptr);
     vkFreeMemory(_device, stagingBufferMemory, nullptr);
+}
+
+void HelloTrangle::createUniformBuffers()
+{
+    // 计算结构内存大小
+    VkDeviceSize bufferSize = sizeof(UNIFORMMVP);
+
+    // 分配处理帧数量大小
+    _uniformBuffers.resize(_MAX_FRAMES_IN_FLIGHT);
+    _uniformBuffersMemory.resize(_MAX_FRAMES_IN_FLIGHT);
+    _uniformBuffersMapped.resize(_MAX_FRAMES_IN_FLIGHT);
+
+    // 循环创建uniform缓冲区
+    for (size_t i = 0; i < _MAX_FRAMES_IN_FLIGHT; i++) {
+        // 创建uniform缓冲区
+        createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+                         | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                     _uniformBuffers[i], _uniformBuffersMemory[i]);
+
+        // 映射内存
+        // 该缓冲区在应用程序的整个生命周期中都保持映射到此指针。此技术称为“持久映射”
+        vkMapMemory(_device, _uniformBuffersMemory[i], 0, bufferSize, 0,
+                    &_uniformBuffersMapped[i]);
+    }
+}
+
+void HelloTrangle::createDescriptorPool()
+{
+    // 描述符池创建信息
+    VkDescriptorPoolSize poolSize{};
+    poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    poolSize.descriptorCount = _MAX_FRAMES_IN_FLIGHT;
+
+    // 为每一帧分配一个描述池
+    VkDescriptorPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    // 用的单个描述符的最大数量
+    poolInfo.poolSizeCount = 1;
+    poolInfo.pPoolSizes = &poolSize;
+
+    // 指定可以分配的最大描述符集数量
+    poolInfo.maxSets = static_cast<uint32_t>(_MAX_FRAMES_IN_FLIGHT);
+
+    // 创建描述符池
+    VkResult ret =
+        vkCreateDescriptorPool(_device, &poolInfo, nullptr, &_descriptorPool);
+    if (ret != VK_SUCCESS) {
+        throw std::runtime_error("创建描述符池失败!");
+    }
+}
+
+void HelloTrangle::createDescriptorSets()
+{
+    // 描述符集合
+    std::vector<VkDescriptorSetLayout> layouts{
+        static_cast<uint32_t>(_MAX_FRAMES_IN_FLIGHT), _descriptorSetLayout};
+
+    // 分配描述符集合信息
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+
+    // 指定要从中分配的描述符池
+    allocInfo.descriptorPool = _descriptorPool;
+
+    // 分配的描述符集数量
+    allocInfo.descriptorSetCount = static_cast<uint32_t>(_MAX_FRAMES_IN_FLIGHT);
+    allocInfo.pSetLayouts = layouts.data();
+
+    // 分配描述符集合
+    _descriptorSets.resize(_MAX_FRAMES_IN_FLIGHT);
+    VkResult ret =
+        vkAllocateDescriptorSets(_device, &allocInfo, _descriptorSets.data());
+    if (ret != VK_SUCCESS) {
+        throw std::runtime_error("分配描述符集合失败!");
+    }
+
+    // 配置描述符
+    for (size_t i = 0; i < _MAX_FRAMES_IN_FLIGHT; i++) {
+
+        // 指定缓冲区以及其中包含描述符数据的区域
+        VkDescriptorBufferInfo bufferInfo{};
+        bufferInfo.buffer = _uniformBuffers[i];
+        bufferInfo.offset = 0;
+        bufferInfo.range = sizeof(UNIFORMMVP);
+
+        // 描述符配置
+        VkWriteDescriptorSet descriptorWrite{};
+        descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+
+        // 更新的描述符集
+        descriptorWrite.dstSet = _descriptorSets[i];
+
+        // 统一缓冲区绑定索引 0
+        descriptorWrite.dstBinding = 0;
+        descriptorWrite.dstArrayElement = 0;
+
+        // 再次指定描述符的类型
+        descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        // 指定新的数组元素的数量
+        descriptorWrite.descriptorCount = 1;
+
+        // 配置了描述
+        descriptorWrite.pBufferInfo = &bufferInfo;
+        descriptorWrite.pImageInfo = nullptr;       // 可选
+        descriptorWrite.pTexelBufferView = nullptr; // 可选
+
+        // 应用更新
+        vkUpdateDescriptorSets(_device, 1, &descriptorWrite, 0, nullptr);
+    }
 }
 
 void HelloTrangle::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
@@ -1140,6 +1307,14 @@ void HelloTrangle::recordCommandBuffer(VkCommandBuffer commandBuffer,
     VkDeviceSize offsets[] = {0};
     vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 
+    // 使用描述符集
+    // 与顶点缓冲区和索引缓冲区不同，描述符集对于图形管线不是唯一的。
+    // 因此，我们需要指定是否要将描述符集绑定到图形管线或计算管线。
+    // 然后是开始索引 个数 绑定的描述符集合
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            _pipelineLayout, 0, 1,
+                            &_descriptorSets[_currentFrame], 0, nullptr);
+
     // 绑定索引缓冲区
     vkCmdBindIndexBuffer(commandBuffer, _indexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
@@ -1232,6 +1407,9 @@ void HelloTrangle::drawFrame()
         throw std::runtime_error("获取交换链图像失败!");
     }
 
+    // 更新uniform缓冲区
+    updateUniformBuffer(_currentFrame);
+
     // 调用手动将栅栏重置为未发出信号的状态
     // 只有在提交工作时才重置围栏
     vkResetFences(_device, 1, &_inFlightFences[_currentFrame]);
@@ -1302,6 +1480,38 @@ void HelloTrangle::drawFrame()
 
     // 前进到下一帧
     _currentFrame = (_currentFrame + 1) % _MAX_FRAMES_IN_FLIGHT;
+}
+
+void HelloTrangle::updateUniformBuffer(uint32_t currentImage)
+{
+    // 计算自渲染开始以来以秒为单位的时间
+    static auto startTime = std::chrono::high_resolution_clock::now();
+
+    // 当前时间
+    auto currentTime = std::chrono::high_resolution_clock::now();
+    float time = std::chrono::duration<float, std::chrono::seconds::period>(
+                     currentTime - startTime)
+                     .count();
+
+    UNIFORMMVP ubo{};
+    // 模型矩阵沿Z轴每秒旋转90°
+    ubo.model = glm::rotate(MAT_4(1.0f), time * glm::radians(90.0f),
+                            PTF_3D(0.0f, 0.0f, 1.0f));
+
+    // 视图矩阵
+    ubo.view = glm::lookAt(PTF_3D(2.0f, 2.0f, 2.0f), PTF_3D(0.0f),
+                           PTF_3D(0.0f, 0.0f, 1.0f));
+
+    // 投影矩阵
+    float sceen =
+        (float)_swapChainExtent.width / (float)_swapChainExtent.height;
+    ubo.proj = glm::perspective(glm::radians(45.0f), sceen, 0.1f, 10.0f);
+
+    // glm裁剪坐标Y是反的
+    ubo.proj[1][1] *= -1;
+
+    // 拷贝数据到缓冲区内存
+    memcpy(_uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
 }
 
 VkShaderModule HelloTrangle::createShaderModule(const std::vector<char> &code)

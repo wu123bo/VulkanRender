@@ -4,6 +4,9 @@
 #include <array>
 
 #include "glm/glm.hpp"
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+
 #include "vulkan/vulkan.h"
 
 #ifndef SDelete
@@ -37,6 +40,14 @@ typedef glm::ivec4 PTI_4D;
 typedef glm::mat2 MAT_2;
 typedef glm::mat3 MAT_3;
 typedef glm::mat4 MAT_4;
+
+// 矩阵信息结构体
+struct UNIFORMMVP
+{
+    MAT_4 model;
+    MAT_4 view;
+    MAT_4 proj;
+};
 
 // 顶点坐标颜色结构体
 struct VERTEX

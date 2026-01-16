@@ -2,6 +2,7 @@
 #define HELLOTRANGLE_H_
 
 #include <algorithm>
+#include <chrono>
 #include <cstdint>
 #include <cstring>
 #include <iostream>
@@ -95,6 +96,9 @@ private:
     // 创建渲染通道
     void createRenderPass();
 
+    // 创建描述符集布局
+    void createDescriptorSetLayout();
+
     // 创建图形管线
     void createGraphicsPipeline();
 
@@ -109,6 +113,15 @@ private:
 
     // 创建索引缓冲区
     void createIndexBuffer();
+
+    // 创建uniform缓冲区
+    void createUniformBuffers();
+
+    // 创建描述符池
+    void createDescriptorPool();
+
+    // 创建描述符集合
+    void createDescriptorSets();
 
     // 创建缓冲区
     void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
@@ -140,6 +153,9 @@ private:
 
     // 渲染和呈现
     void drawFrame();
+
+    // 更新uniform缓冲区
+    void updateUniformBuffer(uint32_t currentImage);
 
     // 创建着色器模块
     VkShaderModule createShaderModule(const std::vector<char> &code);
@@ -241,6 +257,10 @@ private:
     // 管线布局
     VkPipelineLayout _pipelineLayout;
 
+    // 描述符集布局
+    //  所有描述符绑定都组合到单个 VkDescriptorSetLayout 对象中
+    VkDescriptorSetLayout _descriptorSetLayout;
+
     // 渲染管线
     VkPipeline _graphicsPipeline;
 
@@ -263,6 +283,21 @@ private:
 
     // 索引缓冲区内存
     VkDeviceMemory _indexBufferMemory;
+
+    // uniform 缓冲区
+    std::vector<VkBuffer> _uniformBuffers;
+
+    // uniform 缓冲区内存
+    std::vector<VkDeviceMemory> _uniformBuffersMemory;
+
+    // uniform 缓冲区内存映射
+    std::vector<void *> _uniformBuffersMapped;
+
+    // 描述符池句柄
+    VkDescriptorPool _descriptorPool;
+
+    // 描述符集合
+    std::vector<VkDescriptorSet> _descriptorSets;
 
     // 分配命令缓冲区
     std::vector<VkCommandBuffer> _commandBuffers;
