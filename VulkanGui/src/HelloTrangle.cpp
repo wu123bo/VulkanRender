@@ -403,6 +403,7 @@ void HelloTrangle::createSwapChain()
     _swapChainImageFormat = surfaceFormat.format;
 
     // 必须决定在交换链中想要拥有多少个图像 该实现指定其运行所需的最小数量
+    //TODO 这里改成不加1 就不会报错了
     uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
 
     // 确保在此过程中不要超过最大图像数量，其中 0 是一个特殊值，表示没有最大值
