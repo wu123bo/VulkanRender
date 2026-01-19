@@ -320,7 +320,16 @@ void HelloTrangle::pickPhysicalDevice()
     // 找到合适的物理设备 TODO后续使用评分
     for (const auto &device : devices) {
         if (isDeviceSuitable(device)) {
+
+            // 选择该物理设备
             _physicalDevice = device;
+
+            // 获取物理设备属性信息
+            VkPhysicalDeviceProperties deviceProperties;
+            vkGetPhysicalDeviceProperties(device, &deviceProperties);
+
+            std::cout << "选择的GPU: " << deviceProperties.deviceName
+                      << std::endl;
             break;
         }
     }
@@ -872,8 +881,8 @@ void HelloTrangle::createTextureImage()
 {
     // 加载纹理图片
     int texWidth, texHeight, texChannels;
-    stbi_uc *pixels = stbi_load("Res/Image/statue.jpg", &texWidth,
-                                &texHeight, &texChannels, STBI_rgb_alpha);
+    stbi_uc *pixels = stbi_load("Res/Image/statue.jpg", &texWidth, &texHeight,
+                                &texChannels, STBI_rgb_alpha);
 
     if (nullptr == pixels) {
         throw std::runtime_error("加载纹理图像失败!");
