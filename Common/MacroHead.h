@@ -55,6 +55,7 @@ struct VERTEX
 {
     PTF_2D pos;
     PTF_3D color;
+    PTF_2D texCoord;
 
     // 绑定描述
     //  顶点绑定描述了在整个顶点中从内存加载数据的速率
@@ -73,10 +74,10 @@ struct VERTEX
 
     // 属性描述
     // 属性描述结构描述了如何从来自绑定描述的顶点数据块中提取顶点属性
-    static std::array<VkVertexInputAttributeDescription, 2>
+    static std::array<VkVertexInputAttributeDescription, 3>
     getAttributeDescriptions()
     {
-        std::array<VkVertexInputAttributeDescription, 2>
+        std::array<VkVertexInputAttributeDescription, 3>
             attributeDescriptions{};
         // 告诉 Vulkan 每个顶点的数据来自哪个绑定
         attributeDescriptions[0].binding = 0;
@@ -96,6 +97,12 @@ struct VERTEX
         attributeDescriptions[1].location = 1;
         attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
         attributeDescriptions[1].offset = offsetof(VERTEX, color);
+
+        // 颜色属性相同设置
+        attributeDescriptions[2].binding = 0;
+        attributeDescriptions[2].location = 2;
+        attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
+        attributeDescriptions[2].offset = offsetof(VERTEX, texCoord);
 
         return attributeDescriptions;
     }

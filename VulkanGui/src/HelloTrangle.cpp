@@ -94,6 +94,12 @@ void HelloTrangle::initVulkan()
     // 创建纹理资源
     createTextureImage();
 
+    // 创建纹理图像视图
+    createTextureImageView();
+
+    // 创建纹理采样器
+    createTextureSampler();
+
     // 创建顶点数据缓冲区
     createVertexBuffer();
 
@@ -152,6 +158,12 @@ void HelloTrangle::cleanup()
 
     // 清理描述符池句柄
     vkDestroyDescriptorPool(_device, _descriptorPool, nullptr);
+
+    // 清理纹理采样器
+    vkDestroySampler(_device, _textureSampler, nullptr);
+
+    // 清理纹理图像视图
+    vkDestroyImageView(_device, _textureImageView, nullptr);
 
     // 清理纹理图像
     vkDestroyImage(_device, _textureImage, nullptr);
@@ -372,6 +384,9 @@ void HelloTrangle::createLogicalDevice()
     // 位浮点数和多视口渲染（对 VR 有用）等可选功能的支持情况
     VkPhysicalDeviceFeatures deviceFeatures{};
 
+    // 各向异性过滤实际上是一个可选的设备特性
+    deviceFeatures.samplerAnisotropy = VK_TRUE;
+
     // 逻辑设备创建信息
     VkDeviceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -507,38 +522,11 @@ void HelloTrangle::createImageViews()
     _swapChainImageViews.resize(_swapChainImages.size());
 
     // 便利所有交换链对象
-    for (int i = 0; i < _swapChainImages.size(); i++) {
-        VkImageViewCreateInfo createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        createInfo.image = _swapChainImages[i];
-
-        // 如何解释图像数据
-        // viewType 参数允许您将图像视为 1D 纹理、2D 纹理、3D 纹理和立方体贴图。
-        createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        createInfo.format = _swapChainImageFormat;
-
-        // components 字段允许您对颜色通道进行混合(此处设置默认映射)
-        createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-        createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-        createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-        createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-
-        // 描述图像的用途以及应访问图像的哪一部分。我们的图像将用作颜色目标
-        // 没有任何 mipmap 级别或多个图层。
-        // 开发立体 3D 应用程序，那么您将创建一个具有多个图层的交换链
-        createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        createInfo.subresourceRange.baseMipLevel = 0;
-        createInfo.subresourceRange.levelCount = 1;
-        createInfo.subresourceRange.baseArrayLayer = 0;
-        createInfo.subresourceRange.layerCount = 1;
+    for (size_t i = 0; i < _swapChainImageViews.size(); i++) {
 
         // 创建图像视图
-        VkResult ret = vkCreateImageView(_device, &createInfo, nullptr,
-                                         &_swapChainImageViews[i]);
-
-        if (ret != VK_SUCCESS) {
-            throw std::runtime_error("创建图像视图失败!");
-        }
+        _swapChainImageViews[i] =
+            createImageView(_swapChainImages[i], _swapChainImageFormat);
     }
 }
 
@@ -627,11 +615,32 @@ void HelloTrangle::createDescriptorSetLayout()
     // 字段仅与图像采样相关的描述符相关
     uboLayoutBinding.pImmutableSamplers = nullptr; // 可选
 
+    // 采样器布局绑定
+    VkDescriptorSetLayoutBinding samplerLayoutBinding{};
+    // shader里面的绑定ID
+    samplerLayoutBinding.binding = 1;
+    // 缓冲区对象的数组中值的个数
+    samplerLayoutBinding.descriptorCount = 1;
+
+    // 描述符的类型
+    samplerLayoutBinding.descriptorType =
+        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+
+    // 字段仅与图像采样相关的描述符相关
+    samplerLayoutBinding.pImmutableSamplers = nullptr; // 可选
+
+    // 指定在哪些着色器阶段将引用描述符
+    samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    // 描述符数组
+    std::array<VkDescriptorSetLayoutBinding, 2> bindings = {
+        uboLayoutBinding, samplerLayoutBinding};
+
     // 描述符集布局创建信息
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layoutInfo.bindingCount = 1;
-    layoutInfo.pBindings = &uboLayoutBinding;
+    layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+    layoutInfo.pBindings = bindings.data();
 
     // 创建描述符集布局
     VkResult ret = vkCreateDescriptorSetLayout(_device, &layoutInfo, nullptr,
@@ -644,8 +653,8 @@ void HelloTrangle::createDescriptorSetLayout()
 void HelloTrangle::createGraphicsPipeline()
 {
     // 加载shader文件
-    auto vertShaderCode = readShaderFile("Res/Shaders/vertInVertexMVP.spv");
-    auto fragShaderCode = readShaderFile("Res/Shaders/frag.spv");
+    auto vertShaderCode = readShaderFile("Res/Shaders/vertInVertexMVPTex.spv");
+    auto fragShaderCode = readShaderFile("Res/Shaders/vertInVertexMVPTexFrag3.spv");
 
     // 创建着色器模块
     VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
@@ -944,6 +953,64 @@ void HelloTrangle::createTextureImage()
     vkFreeMemory(_device, stagingBufferMemory, nullptr);
 }
 
+void HelloTrangle::createTextureImageView()
+{
+    // 创建图像视图
+    _textureImageView = createImageView(_textureImage, VK_FORMAT_R8G8B8A8_SRGB);
+}
+
+void HelloTrangle::createTextureSampler()
+{
+    VkSamplerCreateInfo samplerInfo{};
+    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+
+    // 指定如何插值放大或缩小的纹素
+    samplerInfo.magFilter = VK_FILTER_LINEAR;
+    samplerInfo.minFilter = VK_FILTER_LINEAR;
+
+    // 按轴指定寻址模式
+    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+
+    // 指定是否应使用各向异性过滤
+    samplerInfo.anisotropyEnable = VK_TRUE;
+
+    // 查询物理设备基本属性
+    VkPhysicalDeviceProperties properties{};
+    vkGetPhysicalDeviceProperties(_physicalDevice, &properties);
+
+    // 最大质量
+    samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
+
+    // 指定当使用钳位到边界寻址模式采样超出图像范围时返回的颜色
+    samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+
+    // 指定你想要使用哪个坐标系来寻址图像中的纹素
+    samplerInfo.unnormalizedCoordinates = VK_FALSE;
+
+    // 如果启用了比较函数，则纹素将首先与一个值进行比较，并且该比较的结果用于过滤操作。
+    samplerInfo.compareEnable = VK_FALSE;
+    samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+
+    // mipmapping 设置信息
+    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    samplerInfo.mipLodBias = 0.0f;
+    samplerInfo.minLod = 0.0f;
+    samplerInfo.maxLod = 0.0f;
+
+    // 创建逻辑设备中的 deviceFeatures.samplerAnisotropy = VK_TRUE;
+    // 除了强制要求各向异性过滤的可用性之外，也可以通过有条件地设置以下代码来简单地不使用它
+    // samplerInfo.anisotropyEnable = VK_FALSE;
+    // samplerInfo.maxAnisotropy = 1.0f;
+
+    VkResult ret =
+        vkCreateSampler(_device, &samplerInfo, nullptr, &_textureSampler);
+    if (ret != VK_SUCCESS) {
+        throw std::runtime_error("创建纹理采样器失败!");
+    }
+}
+
 void HelloTrangle::createVertexBuffer()
 {
     // 计算顶点数据内存大小
@@ -1054,16 +1121,18 @@ void HelloTrangle::createUniformBuffers()
 void HelloTrangle::createDescriptorPool()
 {
     // 描述符池创建信息
-    VkDescriptorPoolSize poolSize{};
-    poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSize.descriptorCount = _MAX_FRAMES_IN_FLIGHT;
+    std::array<VkDescriptorPoolSize, 2> poolSizes{};
+    poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    poolSizes[0].descriptorCount = static_cast<uint32_t>(_MAX_FRAMES_IN_FLIGHT);
+    poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes[1].descriptorCount = static_cast<uint32_t>(_MAX_FRAMES_IN_FLIGHT);
 
     // 为每一帧分配一个描述池
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     // 用的单个描述符的最大数量
-    poolInfo.poolSizeCount = 1;
-    poolInfo.pPoolSizes = &poolSize;
+    poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+    poolInfo.pPoolSizes = poolSizes.data();
 
     // 指定可以分配的最大描述符集数量
     poolInfo.maxSets = static_cast<uint32_t>(_MAX_FRAMES_IN_FLIGHT);
@@ -1110,29 +1179,50 @@ void HelloTrangle::createDescriptorSets()
         bufferInfo.offset = 0;
         bufferInfo.range = sizeof(UNIFORMMVP);
 
+        // 图像信息
+        VkDescriptorImageInfo imageInfo{};
+        imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        imageInfo.imageView = _textureImageView;
+        imageInfo.sampler = _textureSampler;
+
         // 描述符配置
-        VkWriteDescriptorSet descriptorWrite{};
-        descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
+        descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 
         // 更新的描述符集
-        descriptorWrite.dstSet = _descriptorSets[i];
+        descriptorWrites[0].dstSet = _descriptorSets[i];
 
         // 统一缓冲区绑定索引 0
-        descriptorWrite.dstBinding = 0;
-        descriptorWrite.dstArrayElement = 0;
+        descriptorWrites[0].dstBinding = 0;
+        descriptorWrites[0].dstArrayElement = 0;
 
         // 再次指定描述符的类型
-        descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+
         // 指定新的数组元素的数量
-        descriptorWrite.descriptorCount = 1;
+        descriptorWrites[0].descriptorCount = 1;
 
         // 配置了描述
-        descriptorWrite.pBufferInfo = &bufferInfo;
-        descriptorWrite.pImageInfo = nullptr;       // 可选
-        descriptorWrite.pTexelBufferView = nullptr; // 可选
+        descriptorWrites[0].pBufferInfo = &bufferInfo;
+        descriptorWrites[0].pImageInfo = nullptr;       // 可选
+        descriptorWrites[0].pTexelBufferView = nullptr; // 可选
 
-        // 应用更新
-        vkUpdateDescriptorSets(_device, 1, &descriptorWrite, 0, nullptr);
+        // 配置纹理图像采样器描述符
+        descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[1].dstSet = _descriptorSets[i];
+        descriptorWrites[1].dstBinding = 1;
+        descriptorWrites[1].dstArrayElement = 0;
+        descriptorWrites[1].descriptorType =
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        descriptorWrites[1].descriptorCount = 1;
+        descriptorWrites[1].pImageInfo = &imageInfo;
+        descriptorWrites[1].pBufferInfo = nullptr;      // 可选
+        descriptorWrites[1].pTexelBufferView = nullptr; // 可选
+
+        // 应用更新描述符
+        vkUpdateDescriptorSets(_device,
+                               static_cast<uint32_t>(descriptorWrites.size()),
+                               descriptorWrites.data(), 0, nullptr);
     }
 }
 
@@ -1200,6 +1290,29 @@ void HelloTrangle::createImage(uint32_t width, uint32_t height, VkFormat format,
 
     // 分配成功 将此内存与图像关联起来
     vkBindImageMemory(_device, image, imageMemory, 0);
+}
+
+VkImageView HelloTrangle::createImageView(VkImage image, VkFormat format)
+{
+    // 创建纹理图像视图信息
+    VkImageViewCreateInfo viewInfo{};
+    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    viewInfo.image = image;
+    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    viewInfo.format = format;
+    viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    viewInfo.subresourceRange.baseMipLevel = 0;
+    viewInfo.subresourceRange.levelCount = 1;
+    viewInfo.subresourceRange.baseArrayLayer = 0;
+    viewInfo.subresourceRange.layerCount = 1;
+
+    VkImageView imageView;
+    VkResult ret = vkCreateImageView(_device, &viewInfo, nullptr, &imageView);
+    if (ret != VK_SUCCESS) {
+        throw std::runtime_error("创建纹理图像视图失败!");
+    }
+
+    return imageView;
 }
 
 void HelloTrangle::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
@@ -1796,6 +1909,10 @@ bool HelloTrangle::isDeviceSuitable(VkPhysicalDevice device)
     VkPhysicalDeviceProperties deviceProperties;
     vkGetPhysicalDeviceProperties(device, &deviceProperties);
 
+    // 查询物理设备支持的所有功能
+    VkPhysicalDeviceFeatures supportedFeatures;
+    vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
+
     // 找到合适的物理设备队列族索引
     QueueFamilyIndices indices = findQueueFamilies(device);
 
@@ -1808,7 +1925,8 @@ bool HelloTrangle::isDeviceSuitable(VkPhysicalDevice device)
         SwapChainSupportDetails swapChainSupport =
             querySwapChainSupport(device);
         swapChainAdequate = !swapChainSupport.formats.empty()
-                            && !swapChainSupport.presentModes.empty();
+                            && !swapChainSupport.presentModes.empty()
+                            && supportedFeatures.samplerAnisotropy;
     }
 
     return indices.isComplete() && extensionsSupported && swapChainAdequate;

@@ -111,6 +111,12 @@ private:
     // 创建纹理资源
     void createTextureImage();
 
+    // 创建纹理图像视图
+    void createTextureImageView();
+
+    // 创建纹理采样器
+    void createTextureSampler();
+
     // 创建顶点缓冲区
     void createVertexBuffer();
 
@@ -131,6 +137,9 @@ private:
                      VkImageTiling tiling, VkImageUsageFlags usage,
                      VkMemoryPropertyFlags properties, VkImage &image,
                      VkDeviceMemory &imageMemory);
+
+    // 创建图像视图
+    VkImageView createImageView(VkImage image, VkFormat format);
 
     // 创建缓冲区
     void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
@@ -302,6 +311,12 @@ private:
     // 纹理图像内存
     VkDeviceMemory _textureImageMemory;
 
+    // 纹理图像视图
+    VkImageView _textureImageView;
+
+    // 纹理采样器
+    VkSampler _textureSampler;
+
     // 顶点缓冲区
     VkBuffer _vertexBuffer;
 
@@ -356,10 +371,11 @@ private:
     const std::vector<uint16_t> _indices = {0, 1, 2, 2, 3, 0};
 
     // 顶点坐标 颜色值
-    const std::vector<VERTEX> _vertices = {{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-                                           {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
-                                           {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
-                                           {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}};
+    const std::vector<VERTEX> _vertices = {
+        {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+        {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
+        {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
+        {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}}};
 
 private:
     // 物理设备支持扩展
