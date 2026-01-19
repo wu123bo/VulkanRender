@@ -108,6 +108,9 @@ private:
     // 创建命令池
     void createCommandPool();
 
+    // 创建纹理资源
+    void createTextureImage();
+
     // 创建顶点缓冲区
     void createVertexBuffer();
 
@@ -319,7 +322,7 @@ private:
 
 private:
     // 同时处理多少帧的数量
-    const int _MAX_FRAMES_IN_FLIGHT = 2;
+    int _MAX_FRAMES_IN_FLIGHT = 2;
 
 private:
     // 绘制索引

@@ -1,6 +1,9 @@
 ﻿#include "HelloTrangle.h"
 #include "Shader.h"
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
 // 此结构应传递给 vkCreateDebugUtilsMessengerEXT 函数以创建
 // VkDebugUtilsMessengerEXT 对象
 VkResult CreateDebugUtilsMessengerEXT(
@@ -87,6 +90,9 @@ void HelloTrangle::initVulkan()
 
     // 创建命令池
     createCommandPool();
+
+    // 创建纹理资源
+    createTextureImage();
 
     // 创建顶点数据缓冲区
     createVertexBuffer();
@@ -403,7 +409,7 @@ void HelloTrangle::createSwapChain()
     _swapChainImageFormat = surfaceFormat.format;
 
     // 必须决定在交换链中想要拥有多少个图像 该实现指定其运行所需的最小数量
-    //TODO 这里改成不加1 就不会报错了
+    // TODO 这里改成不加1 就不会报错了
     uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
 
     // 确保在此过程中不要超过最大图像数量，其中 0 是一个特殊值，表示没有最大值
@@ -623,8 +629,8 @@ void HelloTrangle::createDescriptorSetLayout()
 void HelloTrangle::createGraphicsPipeline()
 {
     // 加载shader文件
-    auto vertShaderCode = readShaderFile("Shaders/vertInVertexMVP.spv");
-    auto fragShaderCode = readShaderFile("Shaders/frag.spv");
+    auto vertShaderCode = readShaderFile("Res/Shaders/vertInVertexMVP.spv");
+    auto fragShaderCode = readShaderFile("Res/Shaders/frag.spv");
 
     // 创建着色器模块
     VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
@@ -859,6 +865,18 @@ void HelloTrangle::createCommandPool()
         vkCreateCommandPool(_device, &poolInfo, nullptr, &_commandPool);
     if (ret != VK_SUCCESS) {
         throw std::runtime_error("创建命令池失败!");
+    }
+}
+
+void HelloTrangle::createTextureImage()
+{
+    // 加载纹理图片
+    int texWidth, texHeight, texChannels;
+    stbi_uc *pixels = stbi_load("Res/Image/statue.jpg", &texWidth,
+                                &texHeight, &texChannels, STBI_rgb_alpha);
+
+    if (nullptr == pixels) {
+        throw std::runtime_error("加载纹理图像失败!");
     }
 }
 
