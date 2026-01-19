@@ -50,6 +50,14 @@ struct UNIFORMMVP
     alignas(16) MAT_4 proj;
 };
 
+// 颜色透明度
+struct ALPHACOLOR
+{
+    // alignas(16) 字节对齐 必须是16的倍数
+    alignas(16) float alpha;
+    alignas(16) PTF_3D color;
+};
+
 // 顶点坐标颜色结构体
 struct VERTEX
 {

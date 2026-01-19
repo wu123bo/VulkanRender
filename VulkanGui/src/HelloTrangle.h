@@ -338,6 +338,15 @@ private:
     // uniform 缓冲区内存映射
     std::vector<void *> _uniformBuffersMapped;
 
+    // uniform 缓冲区
+    std::vector<VkBuffer> _uniformApColorBuffers;
+
+    // uniform 缓冲区内存
+    std::vector<VkDeviceMemory> _uniformApColorBuffersMemory;
+
+    // uniform 缓冲区内存映射
+    std::vector<void *> _uniformApColorBuffersMapped;
+
     // 描述符池句柄
     VkDescriptorPool _descriptorPool;
 

@@ -152,8 +152,13 @@ void HelloTrangle::cleanup()
 
     // 清理uniform缓冲区
     for (size_t i = 0; i < _MAX_FRAMES_IN_FLIGHT; i++) {
+        // MVP
         vkDestroyBuffer(_device, _uniformBuffers[i], nullptr);
         vkFreeMemory(_device, _uniformBuffersMemory[i], nullptr);
+
+        // Color + Alpha
+        vkDestroyBuffer(_device, _uniformApColorBuffers[i], nullptr);
+        vkFreeMemory(_device, _uniformApColorBuffersMemory[i], nullptr);
     }
 
     // 清理描述符池句柄
@@ -632,9 +637,22 @@ void HelloTrangle::createDescriptorSetLayout()
     // 指定在哪些着色器阶段将引用描述符
     samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
+    // 描述符集布局信息
+    VkDescriptorSetLayoutBinding uboApColorLayoutBinding{};
+    // shader里面的绑定ID
+    uboApColorLayoutBinding.binding = 2;
+    // 描述符的类型
+    uboApColorLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    // 缓冲区对象的数组中值的个数
+    uboApColorLayoutBinding.descriptorCount = 1;
+    // 指定在哪些着色器阶段将引用描述符
+    uboApColorLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    // 字段仅与图像采样相关的描述符相关
+    uboApColorLayoutBinding.pImmutableSamplers = nullptr; // 可选
+
     // 描述符数组
-    std::array<VkDescriptorSetLayoutBinding, 2> bindings = {
-        uboLayoutBinding, samplerLayoutBinding};
+    std::array<VkDescriptorSetLayoutBinding, 3> bindings = {
+        uboLayoutBinding, samplerLayoutBinding, uboApColorLayoutBinding};
 
     // 描述符集布局创建信息
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
@@ -654,7 +672,8 @@ void HelloTrangle::createGraphicsPipeline()
 {
     // 加载shader文件
     auto vertShaderCode = readShaderFile("Res/Shaders/vertInVertexMVPTex.spv");
-    auto fragShaderCode = readShaderFile("Res/Shaders/vertInVertexMVPTexFrag3.spv");
+    auto fragShaderCode =
+        readShaderFile("Res/Shaders/vertInVertexMVPTexFrag4.spv");
 
     // 创建着色器模块
     VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
@@ -1097,11 +1116,16 @@ void HelloTrangle::createUniformBuffers()
 {
     // 计算结构内存大小
     VkDeviceSize bufferSize = sizeof(UNIFORMMVP);
+    VkDeviceSize apColorBufferSize = sizeof(ALPHACOLOR);
 
     // 分配处理帧数量大小
     _uniformBuffers.resize(_MAX_FRAMES_IN_FLIGHT);
     _uniformBuffersMemory.resize(_MAX_FRAMES_IN_FLIGHT);
     _uniformBuffersMapped.resize(_MAX_FRAMES_IN_FLIGHT);
+
+    _uniformApColorBuffers.resize(_MAX_FRAMES_IN_FLIGHT);
+    _uniformApColorBuffersMemory.resize(_MAX_FRAMES_IN_FLIGHT);
+    _uniformApColorBuffersMapped.resize(_MAX_FRAMES_IN_FLIGHT);
 
     // 循环创建uniform缓冲区
     for (size_t i = 0; i < _MAX_FRAMES_IN_FLIGHT; i++) {
@@ -1115,6 +1139,17 @@ void HelloTrangle::createUniformBuffers()
         // 该缓冲区在应用程序的整个生命周期中都保持映射到此指针。此技术称为“持久映射”
         vkMapMemory(_device, _uniformBuffersMemory[i], 0, bufferSize, 0,
                     &_uniformBuffersMapped[i]);
+
+        // 创建apColor uniform缓冲区
+        createBuffer(apColorBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+                         | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                     _uniformApColorBuffers[i],
+                     _uniformApColorBuffersMemory[i]);
+
+        // 映射内存
+        vkMapMemory(_device, _uniformApColorBuffersMemory[i], 0,
+                    apColorBufferSize, 0, &_uniformApColorBuffersMapped[i]);
     }
 }
 
@@ -1122,8 +1157,12 @@ void HelloTrangle::createDescriptorPool()
 {
     // 描述符池创建信息
     std::array<VkDescriptorPoolSize, 2> poolSizes{};
+
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSizes[0].descriptorCount = static_cast<uint32_t>(_MAX_FRAMES_IN_FLIGHT);
+    // 两个 UBO（MVP + Color） 所以 * 2
+    poolSizes[0].descriptorCount =
+        static_cast<uint32_t>(_MAX_FRAMES_IN_FLIGHT * 2);
+
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     poolSizes[1].descriptorCount = static_cast<uint32_t>(_MAX_FRAMES_IN_FLIGHT);
 
@@ -1148,8 +1187,8 @@ void HelloTrangle::createDescriptorPool()
 void HelloTrangle::createDescriptorSets()
 {
     // 描述符集合
-    std::vector<VkDescriptorSetLayout> layouts{
-        static_cast<uint32_t>(_MAX_FRAMES_IN_FLIGHT), _descriptorSetLayout};
+    std::vector<VkDescriptorSetLayout> layouts(
+        static_cast<uint32_t>(_MAX_FRAMES_IN_FLIGHT), _descriptorSetLayout);
 
     // 分配描述符集合信息
     VkDescriptorSetAllocateInfo allocInfo{};
@@ -1185,8 +1224,14 @@ void HelloTrangle::createDescriptorSets()
         imageInfo.imageView = _textureImageView;
         imageInfo.sampler = _textureSampler;
 
+        // 颜色透明度信息
+        VkDescriptorBufferInfo bufferApColorInfo{};
+        bufferApColorInfo.buffer = _uniformApColorBuffers[i];
+        bufferApColorInfo.offset = 0;
+        bufferApColorInfo.range = sizeof(ALPHACOLOR);
+
         // 描述符配置
-        std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
+        std::array<VkWriteDescriptorSet, 3> descriptorWrites{};
         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 
         // 更新的描述符集
@@ -1218,6 +1263,17 @@ void HelloTrangle::createDescriptorSets()
         descriptorWrites[1].pImageInfo = &imageInfo;
         descriptorWrites[1].pBufferInfo = nullptr;      // 可选
         descriptorWrites[1].pTexelBufferView = nullptr; // 可选
+
+        // 配置颜色透明度 ubo
+        descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[2].dstSet = _descriptorSets[i];
+        descriptorWrites[2].dstBinding = 2;
+        descriptorWrites[2].dstArrayElement = 0;
+        descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptorWrites[2].descriptorCount = 1;
+        descriptorWrites[2].pBufferInfo = &bufferApColorInfo;
+        descriptorWrites[2].pImageInfo = nullptr;       // 可选
+        descriptorWrites[2].pTexelBufferView = nullptr; // 可选
 
         // 应用更新描述符
         vkUpdateDescriptorSets(_device,
@@ -1863,6 +1919,8 @@ void HelloTrangle::updateUniformBuffer(uint32_t currentImage)
                      currentTime - startTime)
                      .count();
 
+    /**************更新 MVP ubo***************************/
+
     UNIFORMMVP ubo{};
     // 模型矩阵沿Z轴每秒旋转90°
     ubo.model = glm::rotate(MAT_4(1.0f), time * glm::radians(90.0f),
@@ -1882,6 +1940,23 @@ void HelloTrangle::updateUniformBuffer(uint32_t currentImage)
 
     // 拷贝数据到缓冲区内存
     memcpy(_uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
+
+    /**************更新 颜色透明度 ubo***************************/
+    static bool firstCall = true;
+    if (firstCall) {
+        std::srand(
+            static_cast<unsigned int>(std::time(nullptr))); // 只初始化一次
+        firstCall = false;
+    }
+
+    ALPHACOLOR colorUbo{};
+    colorUbo.color = glm::vec3(static_cast<float>(std::rand()) / RAND_MAX,
+                               static_cast<float>(std::rand()) / RAND_MAX,
+                               static_cast<float>(std::rand()) / RAND_MAX);
+    colorUbo.alpha = static_cast<float>(std::rand()) / RAND_MAX;
+
+    memcpy(_uniformApColorBuffersMapped[currentImage], &colorUbo,
+           sizeof(colorUbo));
 }
 
 VkShaderModule HelloTrangle::createShaderModule(const std::vector<char> &code)
