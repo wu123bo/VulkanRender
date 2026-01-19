@@ -126,13 +126,34 @@ private:
     // 创建描述符集合
     void createDescriptorSets();
 
+    // 创建纹理图像
+    void createImage(uint32_t width, uint32_t height, VkFormat format,
+                     VkImageTiling tiling, VkImageUsageFlags usage,
+                     VkMemoryPropertyFlags properties, VkImage &image,
+                     VkDeviceMemory &imageMemory);
+
     // 创建缓冲区
     void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
                       VkMemoryPropertyFlags properties, VkBuffer &buffer,
                       VkDeviceMemory &bufferMemory);
 
+    // 布局转换
+    void transitionImageLayout(VkImage image, VkFormat format,
+                               VkImageLayout oldLayout,
+                               VkImageLayout newLayout);
+
+    // 将缓冲区复制到图像
+    void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width,
+                           uint32_t height);
+
     // 拷贝缓冲区
     void copyBuffer(VkBuffer srcBuffer, VkBuffer destBuffer, VkDeviceSize size);
+
+    // 创建命令缓冲区记录 并绑定 开始单次命令
+    VkCommandBuffer beginSingleTimeCommands();
+
+    // 停止命令缓冲区记录 结束单次命令
+    void endSingleTimeCommands(VkCommandBuffer commandBuffer);
 
     // 查找内存类型
     uint32_t findMemoryType(uint32_t typeFilter,
@@ -274,6 +295,12 @@ private:
     VkCommandPool _commandPool;
 
     /*每一帧都应该有自己的命令缓冲区、信号量和栅栏 */
+
+    // 纹理图像
+    VkImage _textureImage;
+
+    // 纹理图像内存
+    VkDeviceMemory _textureImageMemory;
 
     // 顶点缓冲区
     VkBuffer _vertexBuffer;

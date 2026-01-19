@@ -135,6 +135,15 @@ void HelloTrangle::cleanup()
     // 清理交换链 帧缓冲区 图像视图
     cleanupSwapChain();
 
+    // 清理渲染管线
+    vkDestroyPipeline(_device, _graphicsPipeline, nullptr);
+
+    // 清理管线布局
+    vkDestroyPipelineLayout(_device, _pipelineLayout, nullptr);
+
+    // 清理渲染通道
+    vkDestroyRenderPass(_device, _renderPass, nullptr);
+
     // 清理uniform缓冲区
     for (size_t i = 0; i < _MAX_FRAMES_IN_FLIGHT; i++) {
         vkDestroyBuffer(_device, _uniformBuffers[i], nullptr);
@@ -143,6 +152,12 @@ void HelloTrangle::cleanup()
 
     // 清理描述符池句柄
     vkDestroyDescriptorPool(_device, _descriptorPool, nullptr);
+
+    // 清理纹理图像
+    vkDestroyImage(_device, _textureImage, nullptr);
+
+    // 清理纹理图像缓冲区内存
+    vkFreeMemory(_device, _textureImageMemory, nullptr);
 
     // 清理描述符集布局
     vkDestroyDescriptorSetLayout(_device, _descriptorSetLayout, nullptr);
@@ -158,15 +173,6 @@ void HelloTrangle::cleanup()
 
     // 释放索引数据缓冲区内存
     vkFreeMemory(_device, _indexBufferMemory, nullptr);
-
-    // 清理渲染管线
-    vkDestroyPipeline(_device, _graphicsPipeline, nullptr);
-
-    // 清理管线布局
-    vkDestroyPipelineLayout(_device, _pipelineLayout, nullptr);
-
-    // 清理渲染通道
-    vkDestroyRenderPass(_device, _renderPass, nullptr);
 
     for (size_t i = 0; i < _MAX_FRAMES_IN_FLIGHT; i++) {
         // 清理信号量
@@ -884,9 +890,58 @@ void HelloTrangle::createTextureImage()
     stbi_uc *pixels = stbi_load("Res/Image/statue.jpg", &texWidth, &texHeight,
                                 &texChannels, STBI_rgb_alpha);
 
+    // 像素数组大小
+    VkDeviceSize imageSize = texWidth * texHeight * 4;
+
     if (nullptr == pixels) {
         throw std::runtime_error("加载纹理图像失败!");
     }
+
+    // 暂存缓冲区
+    VkBuffer stagingBuffer;
+    VkDeviceMemory stagingBufferMemory;
+
+    // 创建暂存缓冲区
+    createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+                     | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                 stagingBuffer, stagingBufferMemory);
+
+    // 映射内存
+    void *data = nullptr;
+    vkMapMemory(_device, stagingBufferMemory, 0, imageSize, 0, &data);
+    memcpy(data, pixels, static_cast<size_t>(imageSize));
+
+    // 取消映射
+    vkUnmapMemory(_device, stagingBufferMemory);
+
+    // 释放像素数组
+    stbi_image_free(pixels);
+
+    // 创建纹理图像
+    createImage(texWidth, texHeight, VK_FORMAT_R8G8B8A8_SRGB,
+                VK_IMAGE_TILING_OPTIMAL,
+                VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, _textureImage,
+                _textureImageMemory);
+
+    // 布局转换
+    transitionImageLayout(_textureImage, VK_FORMAT_R8G8B8A8_SRGB,
+                          VK_IMAGE_LAYOUT_UNDEFINED,
+                          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+    // 将缓冲区复制到图像
+    copyBufferToImage(stagingBuffer, _textureImage,
+                      static_cast<uint32_t>(texWidth),
+                      static_cast<uint32_t>(texHeight));
+    // 布局转换
+    transitionImageLayout(_textureImage, VK_FORMAT_R8G8B8A8_SRGB,
+                          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                          VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+    // 将数据从暂存缓冲区复制到设备缓冲区后，清理暂存缓冲区
+    vkDestroyBuffer(_device, stagingBuffer, nullptr);
+    vkFreeMemory(_device, stagingBufferMemory, nullptr);
 }
 
 void HelloTrangle::createVertexBuffer()
@@ -1081,6 +1136,72 @@ void HelloTrangle::createDescriptorSets()
     }
 }
 
+void HelloTrangle::createImage(uint32_t width, uint32_t height, VkFormat format,
+                               VkImageTiling tiling, VkImageUsageFlags usage,
+                               VkMemoryPropertyFlags properties, VkImage &image,
+                               VkDeviceMemory &imageMemory)
+{
+    // 创建图像信息
+    VkImageCreateInfo imageInfo{};
+    imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+
+    // 图像类型
+    imageInfo.imageType = VK_IMAGE_TYPE_2D;
+
+    // 图像宽高深
+    imageInfo.extent.width = static_cast<uint32_t>(width);
+    imageInfo.extent.height = static_cast<uint32_t>(height);
+    imageInfo.extent.depth = 1;
+
+    //
+    imageInfo.mipLevels = 1;
+    imageInfo.arrayLayers = 1;
+
+    // 图像格式
+    imageInfo.format = format;
+    imageInfo.tiling = tiling;
+
+    // GPU 不可用，并且第一次转换将丢弃纹素
+    imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+    // 图像用作传输目标和着色器采样
+    imageInfo.usage = usage;
+
+    // 图像只能由一个队列族使用
+    imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    // 图像将作为颜色目标使用，但不使用多重采样
+    imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageInfo.flags = 0; // 可选
+
+    // 创建图像
+    VkResult ret = vkCreateImage(_device, &imageInfo, nullptr, &image);
+    if (ret != VK_SUCCESS) {
+        throw std::runtime_error("创建纹理图像失败!");
+    }
+
+    // 查询其内存需求
+    VkMemoryRequirements memRequirements;
+    vkGetImageMemoryRequirements(_device, image, &memRequirements);
+
+    // 内存分配信息
+    VkMemoryAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memRequirements.size;
+
+    // 合适的内存类型
+    allocInfo.memoryTypeIndex =
+        findMemoryType(memRequirements.memoryTypeBits, properties);
+
+    ret = vkAllocateMemory(_device, &allocInfo, nullptr, &imageMemory);
+    if (ret != VK_SUCCESS) {
+        throw std::runtime_error("分配图像内存失败!");
+    }
+
+    // 分配成功 将此内存与图像关联起来
+    vkBindImageMemory(_device, image, imageMemory, 0);
+}
+
 void HelloTrangle::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
                                 VkMemoryPropertyFlags properties,
                                 VkBuffer &buffer, VkDeviceMemory &bufferMemory)
@@ -1131,11 +1252,118 @@ void HelloTrangle::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
     vkBindBufferMemory(_device, buffer, bufferMemory, 0);
 }
 
+void HelloTrangle::transitionImageLayout(VkImage image, VkFormat format,
+                                         VkImageLayout oldLayout,
+                                         VkImageLayout newLayout)
+{
+    // 开始单次命令记录
+    VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+
+    // 设置图像内存屏障
+    VkImageMemoryBarrier barrier{};
+    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+
+    // 指定布局转换前后状态
+    barrier.oldLayout = oldLayout;
+    barrier.newLayout = newLayout;
+
+    // 队列族索引（不跨队列）
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+
+    // 指定要转换的图像
+    barrier.image = image;
+
+    // 指定要转换的子资源（mipmap + layer）
+    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    barrier.subresourceRange.baseMipLevel = 0;
+    barrier.subresourceRange.levelCount = 1;
+    barrier.subresourceRange.baseArrayLayer = 0;
+    barrier.subresourceRange.layerCount = 1;
+
+    VkPipelineStageFlags sourceStage;
+    VkPipelineStageFlags destinationStage;
+
+    // 设置访问掩码，控制同步
+    if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED
+        && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+        barrier.srcAccessMask = 0;
+        barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+        sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    } else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+               && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+        sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    } else {
+        throw std::invalid_argument("不支持的布局过渡!");
+    }
+
+    // 执行管线屏障，实现布局转换
+    vkCmdPipelineBarrier(commandBuffer, sourceStage, destinationStage, 0, 0,
+                         nullptr, 0, nullptr, 1, &barrier);
+
+    // 结束命令记录并提交
+    endSingleTimeCommands(commandBuffer);
+}
+
+void HelloTrangle::copyBufferToImage(VkBuffer buffer, VkImage image,
+                                     uint32_t width, uint32_t height)
+{
+    // 开始单次命令记录
+    VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+
+    // 指定缓冲区到图像的拷贝区域
+    VkBufferImageCopy region{};
+    region.bufferOffset = 0;
+    region.bufferRowLength = 0;
+    region.bufferImageHeight = 0;
+
+    // 指定拷贝的 image 子资源
+    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    region.imageSubresource.mipLevel = 0;
+    region.imageSubresource.baseArrayLayer = 0;
+    region.imageSubresource.layerCount = 1;
+
+    // 指定拷贝位置和大小
+    region.imageOffset = {0, 0, 0};
+    region.imageExtent = {width, height, 1};
+
+    // 执行缓冲区到图像的拷贝
+    vkCmdCopyBufferToImage(commandBuffer, buffer, image,
+                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+    // 结束命令记录并提交
+    endSingleTimeCommands(commandBuffer);
+}
+
 void HelloTrangle::copyBuffer(VkBuffer srcBuffer, VkBuffer destBuffer,
                               VkDeviceSize size)
 {
+    // 创建命令缓冲区记录 并绑定 开始单次命令
+    VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+
+    // 命令传输
+    VkBufferCopy copyRegion{};
+    copyRegion.srcOffset = 0;
+    copyRegion.srcOffset = 0;
+    copyRegion.size = size;
+    vkCmdCopyBuffer(commandBuffer, srcBuffer, destBuffer, 1, &copyRegion);
+
+    // 停止记录  清理用于传输操作的命令缓冲区
+    endSingleTimeCommands(commandBuffer);
+}
+
+VkCommandBuffer HelloTrangle::beginSingleTimeCommands()
+{
     // 内存传输操作使用命令缓冲区执行，就像绘制命令一样。
     // 因此，我们必须首先分配一个临时命令缓冲区
+
+    // 创建分配命令缓冲区信息
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
@@ -1146,27 +1374,28 @@ void HelloTrangle::copyBuffer(VkBuffer srcBuffer, VkBuffer destBuffer,
     VkCommandBuffer commandBuffer;
     vkAllocateCommandBuffers(_device, &allocInfo, &commandBuffer);
 
-    // 立即开始记录命令缓冲区
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    // 创建命令缓冲区记录
     vkBeginCommandBuffer(commandBuffer, &beginInfo);
 
-    // 命令传输
-    VkBufferCopy copyRegion{};
-    copyRegion.srcOffset = 0;
-    copyRegion.srcOffset = 0;
-    copyRegion.size = size;
-    vkCmdCopyBuffer(commandBuffer, srcBuffer, destBuffer, 1, &copyRegion);
+    return commandBuffer;
+}
 
-    // 停止记录
+void HelloTrangle::endSingleTimeCommands(VkCommandBuffer commandBuffer)
+{
+    // 停止命令缓冲区记录
     vkEndCommandBuffer(commandBuffer);
 
-    // 执行命令缓冲区以完成传输
+    // 提交命令缓冲区
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &commandBuffer;
+
+    // 将命令缓冲区提交到图形队列
     vkQueueSubmit(_graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
 
     // 等待传输队列使用 vkQueueWaitIdle 变为闲置状态
