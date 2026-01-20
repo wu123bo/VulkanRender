@@ -1115,7 +1115,7 @@ void HelloTrangle::createIndexBuffer()
 void HelloTrangle::createUniformBuffers()
 {
     // 计算结构内存大小
-    VkDeviceSize bufferSize = sizeof(UNIFORMMVP);
+    VkDeviceSize bufferSize = sizeof(MVPMATRIX);
     VkDeviceSize apColorBufferSize = sizeof(ALPHACOLOR);
 
     // 分配处理帧数量大小
@@ -1216,7 +1216,7 @@ void HelloTrangle::createDescriptorSets()
         VkDescriptorBufferInfo bufferInfo{};
         bufferInfo.buffer = _uniformBuffers[i];
         bufferInfo.offset = 0;
-        bufferInfo.range = sizeof(UNIFORMMVP);
+        bufferInfo.range = sizeof(MVPMATRIX);
 
         // 图像信息
         VkDescriptorImageInfo imageInfo{};
@@ -1921,7 +1921,7 @@ void HelloTrangle::updateUniformBuffer(uint32_t currentImage)
 
     /**************更新 MVP ubo***************************/
 
-    UNIFORMMVP ubo{};
+    MVPMATRIX ubo{};
     // 模型矩阵沿Z轴每秒旋转90°
     ubo.model = glm::rotate(MAT_4(1.0f), time * glm::radians(90.0f),
                             PTF_3D(0.0f, 0.0f, 1.0f));

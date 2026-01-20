@@ -42,7 +42,7 @@ typedef glm::mat3 MAT_3;
 typedef glm::mat4 MAT_4;
 
 // 矩阵信息结构体
-struct UNIFORMMVP
+struct MVPMATRIX
 {
     // alignas(16) 字节对齐 必须是16的倍数
     alignas(16) MAT_4 model;
