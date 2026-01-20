@@ -41,6 +41,18 @@ typedef glm::mat2 MAT_2;
 typedef glm::mat3 MAT_3;
 typedef glm::mat4 MAT_4;
 
+struct UNIFORMVEC
+{
+    // uniform 缓冲区
+    std::vector<VkBuffer> buffers;
+
+    // uniform 缓冲区内存
+    std::vector<VkDeviceMemory> buffersMemory;
+
+    // uniform 缓冲区内存映射
+    std::vector<void *> buffersMapped;
+};
+
 // 矩阵信息结构体
 struct MVPMATRIX
 {

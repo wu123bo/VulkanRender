@@ -329,23 +329,11 @@ private:
     // 索引缓冲区内存
     VkDeviceMemory _indexBufferMemory;
 
-    // uniform MVP缓冲区
-    std::vector<VkBuffer> _uniformBuffers;
+    // uniform 矩阵缓冲区
+    UNIFORMVEC _uniformMVP;
 
-    // uniform MVP缓冲区内存
-    std::vector<VkDeviceMemory> _uniformBuffersMemory;
-
-    // uniform MVP缓冲区内存映射
-    std::vector<void *> _uniformBuffersMapped;
-
-    // uniform 颜色+透明度 缓冲区
-    std::vector<VkBuffer> _uniformApColorBuffers;
-
-    // uniform 颜色+透明度 缓冲区内存
-    std::vector<VkDeviceMemory> _uniformApColorBuffersMemory;
-
-    // uniform 颜色+透明度 缓冲区内存映射
-    std::vector<void *> _uniformApColorBuffersMapped;
+    // uniform 颜色透明度缓冲区
+    UNIFORMVEC _uniformAlphaColor;
 
     // 描述符池句柄
     VkDescriptorPool _descriptorPool;

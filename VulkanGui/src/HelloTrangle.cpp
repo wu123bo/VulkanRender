@@ -153,12 +153,12 @@ void HelloTrangle::cleanup()
     // 清理uniform缓冲区
     for (size_t i = 0; i < _MAX_FRAMES_IN_FLIGHT; i++) {
         // MVP
-        vkDestroyBuffer(_device, _uniformBuffers[i], nullptr);
-        vkFreeMemory(_device, _uniformBuffersMemory[i], nullptr);
+        vkDestroyBuffer(_device, _uniformMVP.buffers[i], nullptr);
+        vkFreeMemory(_device, _uniformMVP.buffersMemory[i], nullptr);
 
         // Color + Alpha
-        vkDestroyBuffer(_device, _uniformApColorBuffers[i], nullptr);
-        vkFreeMemory(_device, _uniformApColorBuffersMemory[i], nullptr);
+        vkDestroyBuffer(_device, _uniformAlphaColor.buffers[i], nullptr);
+        vkFreeMemory(_device, _uniformAlphaColor.buffersMemory[i], nullptr);
     }
 
     // 清理描述符池句柄
@@ -1119,13 +1119,13 @@ void HelloTrangle::createUniformBuffers()
     VkDeviceSize apColorBufferSize = sizeof(ALPHACOLOR);
 
     // 分配处理帧数量大小
-    _uniformBuffers.resize(_MAX_FRAMES_IN_FLIGHT);
-    _uniformBuffersMemory.resize(_MAX_FRAMES_IN_FLIGHT);
-    _uniformBuffersMapped.resize(_MAX_FRAMES_IN_FLIGHT);
+    _uniformMVP.buffers.resize(_MAX_FRAMES_IN_FLIGHT);
+    _uniformMVP.buffersMemory.resize(_MAX_FRAMES_IN_FLIGHT);
+    _uniformMVP.buffersMapped.resize(_MAX_FRAMES_IN_FLIGHT);
 
-    _uniformApColorBuffers.resize(_MAX_FRAMES_IN_FLIGHT);
-    _uniformApColorBuffersMemory.resize(_MAX_FRAMES_IN_FLIGHT);
-    _uniformApColorBuffersMapped.resize(_MAX_FRAMES_IN_FLIGHT);
+    _uniformAlphaColor.buffers.resize(_MAX_FRAMES_IN_FLIGHT);
+    _uniformAlphaColor.buffersMemory.resize(_MAX_FRAMES_IN_FLIGHT);
+    _uniformAlphaColor.buffersMapped.resize(_MAX_FRAMES_IN_FLIGHT);
 
     // 循环创建uniform缓冲区
     for (size_t i = 0; i < _MAX_FRAMES_IN_FLIGHT; i++) {
@@ -1133,23 +1133,23 @@ void HelloTrangle::createUniformBuffers()
         createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
                          | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                     _uniformBuffers[i], _uniformBuffersMemory[i]);
+                     _uniformMVP.buffers[i], _uniformMVP.buffersMemory[i]);
 
         // 映射内存
         // 该缓冲区在应用程序的整个生命周期中都保持映射到此指针。此技术称为“持久映射”
-        vkMapMemory(_device, _uniformBuffersMemory[i], 0, bufferSize, 0,
-                    &_uniformBuffersMapped[i]);
+        vkMapMemory(_device, _uniformMVP.buffersMemory[i], 0, bufferSize, 0,
+                    &_uniformMVP.buffersMapped[i]);
 
         // 创建apColor uniform缓冲区
         createBuffer(apColorBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
                          | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                     _uniformApColorBuffers[i],
-                     _uniformApColorBuffersMemory[i]);
+                     _uniformAlphaColor.buffers[i],
+                     _uniformAlphaColor.buffersMemory[i]);
 
         // 映射内存
-        vkMapMemory(_device, _uniformApColorBuffersMemory[i], 0,
-                    apColorBufferSize, 0, &_uniformApColorBuffersMapped[i]);
+        vkMapMemory(_device, _uniformAlphaColor.buffersMemory[i], 0,
+                    apColorBufferSize, 0, &_uniformAlphaColor.buffersMapped[i]);
     }
 }
 
@@ -1214,7 +1214,7 @@ void HelloTrangle::createDescriptorSets()
 
         // 指定缓冲区以及其中包含描述符数据的区域
         VkDescriptorBufferInfo bufferInfo{};
-        bufferInfo.buffer = _uniformBuffers[i];
+        bufferInfo.buffer = _uniformMVP.buffers[i];
         bufferInfo.offset = 0;
         bufferInfo.range = sizeof(MVPMATRIX);
 
@@ -1226,7 +1226,7 @@ void HelloTrangle::createDescriptorSets()
 
         // 颜色透明度信息
         VkDescriptorBufferInfo bufferApColorInfo{};
-        bufferApColorInfo.buffer = _uniformApColorBuffers[i];
+        bufferApColorInfo.buffer = _uniformAlphaColor.buffers[i];
         bufferApColorInfo.offset = 0;
         bufferApColorInfo.range = sizeof(ALPHACOLOR);
 
@@ -1939,7 +1939,7 @@ void HelloTrangle::updateUniformBuffer(uint32_t currentImage)
     ubo.proj[1][1] *= -1;
 
     // 拷贝数据到缓冲区内存
-    memcpy(_uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
+    memcpy(_uniformMVP.buffersMapped[currentImage], &ubo, sizeof(ubo));
 
     /**************更新 颜色透明度 ubo***************************/
     static bool firstCall = true;
@@ -1955,7 +1955,7 @@ void HelloTrangle::updateUniformBuffer(uint32_t currentImage)
                                static_cast<float>(std::rand()) / RAND_MAX);
     colorUbo.alpha = static_cast<float>(std::rand()) / RAND_MAX;
 
-    memcpy(_uniformApColorBuffersMapped[currentImage], &colorUbo,
+    memcpy(_uniformAlphaColor.buffersMapped[currentImage], &colorUbo,
            sizeof(colorUbo));
 }
 
