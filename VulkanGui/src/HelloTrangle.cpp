@@ -759,7 +759,7 @@ void HelloTrangle::createGraphicsPipeline()
     // 线条的粗细
     rasterizer.lineWidth = 1.0f;
     // 面剔除类型
-    rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+    rasterizer.cullMode = VK_CULL_MODE_NONE;
     // 正面的面的顶点顺序，可以是顺时针或逆时针
     rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     // 光栅化器可以通过添加常量值或根据片段的斜率来偏移深度值
