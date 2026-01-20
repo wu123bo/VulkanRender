@@ -73,7 +73,7 @@ struct ALPHACOLOR
 // 顶点坐标颜色结构体
 struct VERTEX
 {
-    PTF_2D pos;
+    PTF_3D pos;
     PTF_3D color;
     PTF_2D texCoord;
 
@@ -104,7 +104,7 @@ struct VERTEX
         // 引用顶点着色器中输入的 location 指令
         attributeDescriptions[0].location = 0;
         // 描述属性的数据类型
-        attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+        attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
         // 定自每个顶点数据的开始读取的字节数
         attributeDescriptions[0].offset = offsetof(VERTEX, pos);
 

@@ -108,6 +108,9 @@ private:
     // 创建命令池
     void createCommandPool();
 
+    // 创建深度资源
+    void createDepthResources();
+
     // 创建纹理资源
     void createTextureImage();
 
@@ -139,7 +142,8 @@ private:
                      VkDeviceMemory &imageMemory);
 
     // 创建图像视图
-    VkImageView createImageView(VkImage image, VkFormat format);
+    VkImageView createImageView(VkImage image, VkFormat format,
+                                VkImageAspectFlags aspectFlags);
 
     // 创建缓冲区
     void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
@@ -183,6 +187,17 @@ private:
     // 查找内存类型
     uint32_t findMemoryType(uint32_t typeFilter,
                             VkMemoryPropertyFlags properties);
+
+    // 查找支持的格式
+    VkFormat findSupportedFormat(const std::vector<VkFormat> &candidates,
+                                 VkImageTiling tiling,
+                                 VkFormatFeatureFlags features);
+
+    // 检查格式是否包含模板组件
+    bool hasStencilComponent(VkFormat format);
+
+    // 查找深度格式
+    VkFormat findDepthFormat();
 
     // 创建分配命令缓冲区
     void createCommandBuffers();
@@ -270,57 +285,70 @@ private:
     // vulkan 调试信息
     VkDebugUtilsMessengerEXT _debugMessenger;
 
+    // 窗口表面
+    VkSurfaceKHR _surface;
+
+private:
     // vulkan 物理设备信息
     VkPhysicalDevice _physicalDevice = VK_NULL_HANDLE;
 
     // vulkan 逻辑设备信息
     VkDevice _device = VK_NULL_HANDLE;
 
-    // 图形队列的句柄
+private:
+    // 图形队列
     VkQueue _graphicsQueue;
 
-    // 呈现队列的句柄
+    // 呈现队列
     VkQueue _presentQueue;
 
-    // 窗口表面
-    VkSurfaceKHR _surface;
-
+private:
     // 交换链
     VkSwapchainKHR _swapChain;
-
-    // 交换范围
-    VkExtent2D _swapChainExtent;
-
-    // 交换表面格式
-    VkFormat _swapChainImageFormat;
 
     // VkImage句柄
     std::vector<VkImage> _swapChainImages;
 
+    // 交换表面格式
+    VkFormat _swapChainImageFormat;
+
+    // 交换范围
+    VkExtent2D _swapChainExtent;
+
     // 图像视图
     std::vector<VkImageView> _swapChainImageViews;
-
-    // 渲染通道
-    VkRenderPass _renderPass;
-
-    // 管线布局
-    VkPipelineLayout _pipelineLayout;
-
-    // 描述符集布局
-    //  所有描述符绑定都组合到单个 VkDescriptorSetLayout 对象中
-    VkDescriptorSetLayout _descriptorSetLayout;
-
-    // 渲染管线
-    VkPipeline _graphicsPipeline;
 
     // 帧缓冲区
     std::vector<VkFramebuffer> _swapChainFramebuffers;
 
+private:
+    // 渲染通道
+    VkRenderPass _renderPass;
+
+    // 描述符集布局
+    VkDescriptorSetLayout _descriptorSetLayout;
+
+    // 管线布局
+    VkPipelineLayout _pipelineLayout;
+
+    // 渲染管线
+    VkPipeline _graphicsPipeline;
+
+private:
     // 命令池
     VkCommandPool _commandPool;
 
-    /*每一帧都应该有自己的命令缓冲区、信号量和栅栏 */
+private:
+    // 深度图像
+    VkImage _depthImage;
 
+    // 深度图像内存
+    VkDeviceMemory _depthImageMemory;
+
+    // 深度图像视图
+    VkImageView _depthImageView;
+
+private:
     // 纹理图像
     VkImage _textureImage;
 
@@ -333,6 +361,7 @@ private:
     // 纹理采样器
     VkSampler _textureSampler;
 
+private:
     // 顶点缓冲区
     VkBuffer _vertexBuffer;
 
@@ -345,20 +374,30 @@ private:
     // 索引缓冲区内存
     VkDeviceMemory _indexBufferMemory;
 
+private:
     // uniform 矩阵缓冲区
     UNIFORMVEC _uniformMVP;
 
     // uniform 颜色透明度缓冲区
     UNIFORMVEC _uniformAlphaColor;
 
+private:
     // 描述符池句柄
     VkDescriptorPool _descriptorPool;
 
     // 描述符集合
     std::vector<VkDescriptorSet> _descriptorSets;
 
+private:
     // 分配命令缓冲区
     std::vector<VkCommandBuffer> _commandBuffers;
+
+private:
+    // 当前帧索引
+    uint32_t _currentFrame = 0;
+
+    // 栅栏对象
+    std::vector<VkFence> _inFlightFences;
 
     // 图像可用信号量
     std::vector<VkSemaphore> _imageAvailableSemaphores;
@@ -366,29 +405,28 @@ private:
     // 渲染完成信号量
     std::vector<VkSemaphore> _renderFinishedSemaphores;
 
-    // 栅栏对象
-    std::vector<VkFence> _inFlightFences;
-
-    // 标记是否发生了调整大小的操作
-    bool _framebufferResized = false;
-
-    // 当前帧索引
-    uint32_t _currentFrame = 0;
-
 private:
     // 同时处理多少帧的数量
     int _MAX_FRAMES_IN_FLIGHT = 2;
 
+    // 标记是否发生了调整大小的操作
+    bool _framebufferResized = false;
+
 private:
     // 绘制索引
-    const std::vector<uint16_t> _indices = {0, 1, 2, 2, 3, 0};
+    const std::vector<uint16_t> _indices = {0, 1, 2, 2, 3, 0, 4, 5, 6, 6, 7, 4};
 
     // 顶点坐标 颜色值
     const std::vector<VERTEX> _vertices = {
-        {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
-        {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
-        {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
-        {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}}};
+        {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+        {{0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+        {{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+        {{-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}},
+
+        {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+        {{0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+        {{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+        {{-0.5f, 0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}};
 
 private:
     // 物理设备支持扩展

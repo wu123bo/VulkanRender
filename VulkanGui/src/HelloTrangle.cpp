@@ -85,11 +85,14 @@ void HelloTrangle::initVulkan()
     // 创建图形管线
     createGraphicsPipeline();
 
-    // 创建帧缓冲区
-    createFramebuffers();
-
     // 创建命令池
     createCommandPool();
+
+    // 创建深度资源
+    createDepthResources();
+
+    // 创建帧缓冲区
+    createFramebuffers();
 
     // 创建纹理资源
     createTextureImage();
@@ -531,76 +534,109 @@ void HelloTrangle::createImageViews()
 
         // 创建图像视图
         _swapChainImageViews[i] =
-            createImageView(_swapChainImages[i], _swapChainImageFormat);
+            createImageView(_swapChainImages[i], _swapChainImageFormat,
+                            VK_IMAGE_ASPECT_COLOR_BIT);
     }
 }
 
 void HelloTrangle::createRenderPass()
 {
-    // 颜色缓冲区附件
+    // ---------- 颜色附件（交换链图像） ----------
     VkAttachmentDescription colorAttachment{};
-    // 颜色附件的 format 应该与交换链图像的格式匹配
+
+    // 必须与 swapchain 格式一致
     colorAttachment.format = _swapChainImageFormat;
+
+    // 不使用 MSAA
     colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
 
-    // 决定在渲染之前和渲染之后如何处理附件中的颜色和深度数据
+    // 渲染前清空
     colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+
+    // 渲染后保留（用于显示）
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 
-    // 决定在渲染之前和渲染之后如何处理附件中的模板数据
+    // 不使用模板缓冲
     colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 
-    // 内存中像素的布局
+    // 初始布局无关
     colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+    // 最终用于呈现
     colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
-    // 附件引用
+    // ---------- 深度附件 ----------
+    VkAttachmentDescription depthAttachment{};
+
+    // 查找支持的深度格式
+    depthAttachment.format = findDepthFormat();
+    depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    depthAttachment.finalLayout =
+        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    // ---------- 颜色附件引用（子通道中使用） ----------
     VkAttachmentReference colorAttachmentRef{};
-    // 通过附件描述数组中的索引指定要引用的附件
+
+    // 对应 attachments[0]
     colorAttachmentRef.attachment = 0;
-    // 使用附件作为颜色缓冲区
     colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-    // 子过程
+    // ---------- 深度附件引用 ----------
+    VkAttachmentReference depthAttachmentRef{};
+
+    // 对应 attachments[1]
+    depthAttachmentRef.attachment = 1;
+    depthAttachmentRef.layout =
+        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    // ---------- 子通道描述 ----------
     VkSubpassDescription subpass{};
     subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &colorAttachmentRef;
+    subpass.pDepthStencilAttachment = &depthAttachmentRef;
 
-    // 创建渲染通道信息
-    VkRenderPassCreateInfo renderPassInfo{};
-    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-
-    // 颜色缓冲区附件
-    renderPassInfo.attachmentCount = 1;
-    renderPassInfo.pAttachments = &colorAttachment;
-
-    // 子过程
-    renderPassInfo.subpassCount = 1;
-    renderPassInfo.pSubpasses = &subpass;
-
-    // 子通道依赖
+    // ---------- 子通道依赖（同步） ----------
     VkSubpassDependency dependency{};
-    // 指定依赖项和被依赖子通道的索引
+
+    // 渲染通道外部
     dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+
+    // 第 0 个子通道
     dependency.dstSubpass = 0;
 
-    // 指定要等待的操作以及这些操作发生的阶段
-    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependency.srcAccessMask = 0;
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+                              | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
 
-    // 等待此操作的操作位于颜色附件阶段，并且涉及颜色附件的写入
-    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+                              | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
 
-    // 指定依赖项数组
+    dependency.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+                               | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+    // ---------- 附件列表 ----------
+    std::array<VkAttachmentDescription, 2> attachments = {colorAttachment,
+                                                          depthAttachment};
+
+    // ---------- 创建渲染通道 ----------
+    VkRenderPassCreateInfo renderPassInfo{};
+    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+    renderPassInfo.pAttachments = attachments.data();
+    renderPassInfo.subpassCount = 1;
+    renderPassInfo.pSubpasses = &subpass;
     renderPassInfo.dependencyCount = 1;
     renderPassInfo.pDependencies = &dependency;
 
-    VkResult ret =
-        vkCreateRenderPass(_device, &renderPassInfo, nullptr, &_renderPass);
-    if (ret != VK_SUCCESS) {
+    if (vkCreateRenderPass(_device, &renderPassInfo, nullptr, &_renderPass)
+        != VK_SUCCESS) {
         throw std::runtime_error("创建渲染通道失败!");
     }
 }
@@ -645,7 +681,8 @@ void HelloTrangle::createDescriptorSetLayout()
 void HelloTrangle::createGraphicsPipeline()
 {
     // 加载shader文件
-    auto vertShaderCode = readShaderFile("Res/Shaders/vertInVertexMVPTex.spv");
+    auto vertShaderCode =
+        readShaderFile("Res/Shaders/vertInVertexMVPTex3D.spv");
     auto fragShaderCode =
         readShaderFile("Res/Shaders/vertInVertexMVPTexFrag4.spv");
 
@@ -742,7 +779,24 @@ void HelloTrangle::createGraphicsPipeline()
     multisampling.alphaToCoverageEnable = VK_FALSE;
     multisampling.alphaToOneEnable = VK_FALSE;
 
-    // 深度和模板测试(目前没用)
+    // 深度测试和模板测试
+    VkPipelineDepthStencilStateCreateInfo depthStencil{};
+    depthStencil.sType =
+        VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    // 是否应将新片段的深度与深度缓冲区进行比较
+    depthStencil.depthTestEnable = VK_TRUE;
+    // 是否应将通过深度测试的片段的新深度实际写入深度缓冲区
+    depthStencil.depthWriteEnable = VK_TRUE;
+    // 指定执行的比较以保留或丢弃片段
+    depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+    // 用于可选的深度边界测试
+    depthStencil.depthBoundsTestEnable = VK_FALSE;
+    depthStencil.minDepthBounds = 0.0f; // 可选
+    depthStencil.maxDepthBounds = 1.0f; // 可选
+    // 模板缓冲区操作
+    depthStencil.stencilTestEnable = VK_FALSE;
+    depthStencil.front = {}; // 可选
+    depthStencil.back = {};  // 可选
 
     // 颜色混合
     VkPipelineColorBlendAttachmentState colorBlendAttachment{};
@@ -808,8 +862,8 @@ void HelloTrangle::createGraphicsPipeline()
     pipelineInfo.pRasterizationState = &rasterizer;
     // 多重采样
     pipelineInfo.pMultisampleState = &multisampling;
-    // 深度和模板测试(目前没用)
-    pipelineInfo.pDepthStencilState = nullptr;
+    // 深度和模板测试
+    pipelineInfo.pDepthStencilState = &depthStencil;
     // 颜色混合
     pipelineInfo.pColorBlendState = &colorBlending;
     // 视口和剪裁状态设置为动态
@@ -843,14 +897,22 @@ void HelloTrangle::createFramebuffers()
 
     // 迭代图像视图并从中创建帧缓冲
     for (size_t i = 0; i < _swapChainImageViews.size(); i++) {
-        VkImageView attachments[] = {_swapChainImageViews[i]};
+        std::array<VkImageView, 2> attachments = {_swapChainImageViews[i],
+                                                  _depthImageView};
 
         // 创建帧缓冲信息
         VkFramebufferCreateInfo framebufferInfo{};
         framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+
+        // 渲染通道
         framebufferInfo.renderPass = _renderPass;
-        framebufferInfo.attachmentCount = 1;
-        framebufferInfo.pAttachments = attachments;
+
+        // 图像视图
+        framebufferInfo.attachmentCount =
+            static_cast<uint32_t>(attachments.size());
+        framebufferInfo.pAttachments = attachments.data();
+
+        // 宽高
         framebufferInfo.width = _swapChainExtent.width;
         framebufferInfo.height = _swapChainExtent.height;
         framebufferInfo.layers = 1;
@@ -883,6 +945,26 @@ void HelloTrangle::createCommandPool()
     if (ret != VK_SUCCESS) {
         throw std::runtime_error("创建命令池失败!");
     }
+}
+
+void HelloTrangle::createDepthResources()
+{
+    // 查找深度格式
+    VkFormat depthFormat = findDepthFormat();
+
+    // 创建深度图像
+    createImage(
+        _swapChainExtent.width, _swapChainExtent.height, depthFormat,
+        VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, _depthImage, _depthImageMemory);
+
+    // 创建深度图像视图
+    _depthImageView =
+        createImageView(_depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
+
+    // 图像布局转换
+    transitionImageLayout(_depthImage, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED,
+                          VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 }
 
 void HelloTrangle::createTextureImage()
@@ -949,7 +1031,8 @@ void HelloTrangle::createTextureImage()
 void HelloTrangle::createTextureImageView()
 {
     // 创建图像视图
-    _textureImageView = createImageView(_textureImage, VK_FORMAT_R8G8B8A8_SRGB);
+    _textureImageView = createImageView(_textureImage, VK_FORMAT_R8G8B8A8_SRGB,
+                                        VK_IMAGE_ASPECT_COLOR_BIT);
 }
 
 void HelloTrangle::createTextureSampler()
@@ -1291,20 +1374,44 @@ void HelloTrangle::createImage(uint32_t width, uint32_t height, VkFormat format,
     vkBindImageMemory(_device, image, imageMemory, 0);
 }
 
-VkImageView HelloTrangle::createImageView(VkImage image, VkFormat format)
+VkImageView HelloTrangle::createImageView(VkImage image, VkFormat format,
+                                          VkImageAspectFlags aspectFlags)
 {
-    // 创建纹理图像视图信息
+    // 创建图像视图的创建信息结构体
     VkImageViewCreateInfo viewInfo{};
     viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+
+    // 该视图所引用的 VkImage（必须已创建）
     viewInfo.image = image;
+
+    // 视图类型：2D 纹理
+    // 常见还有：
+    //   VK_IMAGE_VIEW_TYPE_3D
+    //   VK_IMAGE_VIEW_TYPE_CUBE
     viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+
+    // 视图解释 image 数据时使用的格式
+    // 必须与 image 创建时兼容
     viewInfo.format = format;
-    viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+
+    // 指定 image 的哪个“子资源范围”被这个 view 使用
+    viewInfo.subresourceRange.aspectMask = aspectFlags;
+
+    // 从第 0 级 mipmap 开始
     viewInfo.subresourceRange.baseMipLevel = 0;
+
+    // 使用多少级 mipmap
+    // 你现在是 1 级（无 mipmap）
     viewInfo.subresourceRange.levelCount = 1;
+
+    // 从第 0 层 array layer 开始
     viewInfo.subresourceRange.baseArrayLayer = 0;
+
+    // 使用多少层 array layer
+    // 普通 2D 纹理 = 1
     viewInfo.subresourceRange.layerCount = 1;
 
+    // 创建纹理图像视图
     VkImageView imageView;
     VkResult ret = vkCreateImageView(_device, &viewInfo, nullptr, &imageView);
     if (ret != VK_SUCCESS) {
@@ -1411,8 +1518,27 @@ void HelloTrangle::transitionImageLayout(VkImage image, VkFormat format,
 
         sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
         destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    } else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED
+               && newLayout
+                      == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+        barrier.srcAccessMask = 0;
+        barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT
+                                | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+        sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        destinationStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
     } else {
         throw std::invalid_argument("不支持的布局过渡!");
+    }
+
+    if (newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+        barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+
+        if (hasStencilComponent(format)) {
+            barrier.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+        }
+    } else {
+        barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     }
 
     // 执行管线屏障，实现布局转换
@@ -1613,6 +1739,52 @@ uint32_t HelloTrangle::findMemoryType(uint32_t typeFilter,
     return 0;
 }
 
+VkFormat
+HelloTrangle::findSupportedFormat(const std::vector<VkFormat> &candidates,
+                                  VkImageTiling tiling,
+                                  VkFormatFeatureFlags features)
+{
+    for (VkFormat format : candidates) {
+        // 查询当前物理设备对该格式的支持能力
+        VkFormatProperties props;
+        vkGetPhysicalDeviceFormatProperties(_physicalDevice, format, &props);
+
+        // 如果要求使用线性布局（通常用于 CPU 访问）
+        if (tiling == VK_IMAGE_TILING_LINEAR
+            && (props.linearTilingFeatures & features) == features) {
+
+            // 线性布局下，支持所需特性
+            return format;
+        }
+        // 如果要求使用最优布局（GPU 采样 / 渲染常用）
+        else if (tiling == VK_IMAGE_TILING_OPTIMAL
+                 && (props.optimalTilingFeatures & features) == features) {
+            // 最优布局下，支持所需特性
+
+            return format;
+        }
+    }
+
+    throw std::runtime_error("未找到支持的格式!");
+}
+
+bool HelloTrangle::hasStencilComponent(VkFormat format)
+{
+    // 所选的深度格式是否包含模板分量
+    return format == VK_FORMAT_D32_SFLOAT_S8_UINT
+           || format == VK_FORMAT_D24_UNORM_S8_UINT;
+}
+
+VkFormat HelloTrangle::findDepthFormat()
+{
+    // 查找支持的格式 选择一个包含深度分量并且支持用作深度附件的格式
+    return findSupportedFormat({VK_FORMAT_D32_SFLOAT,
+                                VK_FORMAT_D32_SFLOAT_S8_UINT,
+                                VK_FORMAT_D24_UNORM_S8_UINT},
+                               VK_IMAGE_TILING_OPTIMAL,
+                               VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+}
+
 void HelloTrangle::createCommandBuffers()
 {
     // 根据同时处理帧数 分配
@@ -1711,19 +1883,19 @@ void HelloTrangle::recordCommandBuffer(VkCommandBuffer commandBuffer,
     renderPassInfo.renderArea.offset = {0, 0};
     renderPassInfo.renderArea.extent = _swapChainExtent;
 
+    // 多个具有 VK_ATTACHMENT_LOAD_OP_CLEAR 的附件
     // 参数定义了用于 VK_ATTACHMENT_LOAD_OP_CLEAR 的清除值
-    VkClearValue clearColor = {{{1.0f, 1.0f, 1.0f, 1.0f}}};
-    renderPassInfo.clearValueCount = 1;
-    renderPassInfo.pClearValues = &clearColor;
+    std::array<VkClearValue, 2> clearValues{};
+    clearValues[0].color = {{1.0f, 1.0f, 1.0f, 1.0f}};
+    clearValues[1].depthStencil = {1.0f, 0};
+    renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+    renderPassInfo.pClearValues = clearValues.data();
 
     // 渲染通道开始
-    //  VK_SUBPASS_CONTENTS_INLINE
-    //  渲染通道命令将嵌入到主命令缓冲区本身中，并且不会执行辅助命令缓冲区
     vkCmdBeginRenderPass(commandBuffer, &renderPassInfo,
                          VK_SUBPASS_CONTENTS_INLINE);
 
     // 绑定图形管线
-    // 第二个参数指定管线对象是图形管线还是计算管线
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       _graphicsPipeline);
 
@@ -1781,6 +1953,11 @@ void HelloTrangle::recordCommandBuffer(VkCommandBuffer commandBuffer,
 
 void HelloTrangle::cleanupSwapChain()
 {
+    // 清理深度资源
+    vkDestroyImageView(_device, _depthImageView, nullptr);
+    vkDestroyImage(_device, _depthImage, nullptr);
+    vkFreeMemory(_device, _depthImageMemory, nullptr);
+
     // 清理帧缓冲区
     for (auto framebuffer : _swapChainFramebuffers) {
         vkDestroyFramebuffer(_device, framebuffer, nullptr);
@@ -1816,6 +1993,9 @@ void HelloTrangle::recreateSwapChain()
 
     // 创建图像视图
     createImageViews();
+
+    // 创建深度资源
+    createDepthResources();
 
     // 创建帧缓冲区
     createFramebuffers();
