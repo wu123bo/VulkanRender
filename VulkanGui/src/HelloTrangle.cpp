@@ -3,6 +3,9 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+#define TINYOBJLOADER_IMPLEMENTATION
+#include "tiny_obj_loader.h"
+
 #include "PrintMsg.h"
 #include "Shader.h"
 
@@ -104,6 +107,9 @@ void HelloTrangle::initVulkan()
 
     // 创建纹理采样器
     createTextureSampler();
+
+    // 加载模型
+    loadModel();
 
     // 创建顶点数据缓冲区
     createVertexBuffer();
@@ -941,7 +947,7 @@ void HelloTrangle::createTextureImage()
 {
     // 加载纹理图片
     int texWidth, texHeight, texChannels;
-    stbi_uc *pixels = stbi_load("Res/Image/statue.jpg", &texWidth, &texHeight,
+    stbi_uc *pixels = stbi_load(_TEXTURE_PATH.c_str(), &texWidth, &texHeight,
                                 &texChannels, STBI_rgb_alpha);
 
     // 像素数组大小
@@ -1054,6 +1060,47 @@ void HelloTrangle::createTextureSampler()
         vkCreateSampler(_device, &samplerInfo, nullptr, &_textureSampler);
     if (ret != VK_SUCCESS) {
         throw std::runtime_error("创建纹理采样器失败!");
+    }
+}
+
+void HelloTrangle::loadModel()
+{
+    // 使用 tinyobjloader 加载模型
+    tinyobj::attrib_t attrib;
+    std::vector<tinyobj::shape_t> shapes;
+    std::vector<tinyobj::material_t> materials;
+    std::string warn, err;
+
+    if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                          _MODEL_PATH.c_str())) {
+        throw std::runtime_error(warn + err);
+    }
+
+    // 用于存储唯一顶点的哈希映射
+    std::unordered_map<VERTEX, uint32_t> uniqueVertices{};
+
+    for (const auto &shape : shapes) {
+        for (const auto &index : shape.mesh.indices) {
+            VERTEX vertex{};
+
+            vertex.pos = {attrib.vertices[3 * index.vertex_index + 0],
+                          attrib.vertices[3 * index.vertex_index + 1],
+                          attrib.vertices[3 * index.vertex_index + 2]};
+
+            vertex.texCoord = {
+                attrib.texcoords[2 * index.texcoord_index + 0],
+                1.0f - attrib.texcoords[2 * index.texcoord_index + 1]};
+
+            vertex.color = {1.0f, 1.0f, 1.0f};
+
+            if (uniqueVertices.count(vertex) == 0) {
+                uniqueVertices[vertex] =
+                    static_cast<uint32_t>(_vertices.size());
+                _vertices.push_back(vertex);
+            }
+
+            _indices.push_back(uniqueVertices[vertex]);
+        }
     }
 }
 
@@ -1957,7 +2004,7 @@ void HelloTrangle::recordCommandBuffer(VkCommandBuffer commandBuffer,
                             &_descriptorSets[_currentFrame], 0, nullptr);
 
     // 绑定索引缓冲区
-    vkCmdBindIndexBuffer(commandBuffer, _indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+    vkCmdBindIndexBuffer(commandBuffer, _indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
     // 顶点数量
     // 用于实例化渲染，如果不这样做，则使用 1
@@ -2173,9 +2220,7 @@ void HelloTrangle::updateUniformBuffer(uint32_t currentImage)
     }
 
     ALPHACOLOR colorUbo{};
-    colorUbo.color = glm::vec3(static_cast<float>(std::rand()) / RAND_MAX,
-                               static_cast<float>(std::rand()) / RAND_MAX,
-                               static_cast<float>(std::rand()) / RAND_MAX);
+    colorUbo.color = glm::vec3(1.0f);
     colorUbo.alpha = static_cast<float>(std::rand()) / RAND_MAX;
 
     memcpy(_uniformAlphaColor.buffersMapped[currentImage], &colorUbo,

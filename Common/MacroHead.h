@@ -1,11 +1,14 @@
 ﻿#ifndef MACROHEAD_H_
 #define MACROHEAD_H_
 
+#define GLM_ENABLE_EXPERIMENTAL
+
 #include <array>
+#include <unordered_map>
 
 #include "glm/glm.hpp"
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
+#include "glm/gtc/matrix_transform.hpp"
+#include "glm/gtx/hash.hpp"
 
 #include "vulkan/vulkan.h"
 
@@ -126,6 +129,29 @@ struct VERTEX
 
         return attributeDescriptions;
     }
+
+    // 用于 unordered_map 的相等运算符
+    bool operator==(const VERTEX &other) const
+    {
+        return pos == other.pos && color == other.color
+               && texCoord == other.texCoord;
+    }
 };
+
+// 特化 hash 函数 用于 unordered_map
+namespace std
+{
+template<>
+struct hash<VERTEX>
+{
+    size_t operator()(VERTEX const &vertex) const
+    {
+        return ((hash<glm::vec3>()(vertex.pos)
+                 ^ (hash<glm::vec3>()(vertex.color) << 1))
+                >> 1)
+               ^ (hash<glm::vec2>()(vertex.texCoord) << 1);
+    }
+};
+} // namespace std
 
 #endif // !MACROHEAD_H_
