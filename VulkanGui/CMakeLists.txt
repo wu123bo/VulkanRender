@@ -5,6 +5,7 @@ set(ProName VulkanGui)
 project(${ProName})
 
 set(SRC
+    ${COMMON}/PrintMsg.h
     ${COMMON}/MacroHead.h
 
     src/main.cpp
@@ -42,4 +43,6 @@ target_link_libraries(${ProName}
         ${THIRD_PARTY_DIR}/libs/vulkan/vulkan-1.lib
 )
 
-source_group(VkBase REGULAR_EXPRESSION ".*/VkBase/.*")
+file(GLOB COMSRC ${COMMON}/*.h* ${COMMON}/*.cpp ${COMMON}/*.hpp)
+
+source_group(Common FILES ${COMSRC})

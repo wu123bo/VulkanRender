@@ -1,8 +1,10 @@
 ﻿#include "HelloTrangle.h"
-#include "Shader.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
+
+#include "PrintMsg.h"
+#include "Shader.h"
 
 // 此结构应传递给 vkCreateDebugUtilsMessengerEXT 函数以创建
 // VkDebugUtilsMessengerEXT 对象
@@ -354,8 +356,7 @@ void HelloTrangle::pickPhysicalDevice()
             VkPhysicalDeviceProperties deviceProperties;
             vkGetPhysicalDeviceProperties(device, &deviceProperties);
 
-            std::cout << "选择的GPU: " << deviceProperties.deviceName
-                      << std::endl;
+            PSG::PrintMsg("选择的GPU", deviceProperties.deviceName);
             break;
         }
     }
@@ -2424,9 +2425,9 @@ int HelloTrangle::enumerateInstanceExtensions()
     vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount,
                                            extensions.data());
 
-    std::cout << "Vulkan Instance 可用扩展:\n";
+    PSG::PrintMsg("Vulkan Instance 可用扩展:");
     for (const auto &extension : extensions) {
-        std::cout << '\t' << extension.extensionName << '\n';
+        PSG::PrintMsg(extension.extensionName);
     }
 
     return extensionCount;
