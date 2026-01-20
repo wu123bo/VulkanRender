@@ -158,6 +158,22 @@ private:
     // 拷贝缓冲区
     void copyBuffer(VkBuffer srcBuffer, VkBuffer destBuffer, VkDeviceSize size);
 
+    // 创建描述符集布局绑定
+    VkDescriptorSetLayoutBinding
+    makeDescriptorSetLayoutBinding(uint32_t binding, VkDescriptorType type,
+                                   VkShaderStageFlags stageFlags,
+                                   uint32_t count = 1);
+
+    // 创建写描述符集UBO  用于将一个 Uniform Buffer（如 MVP、颜色、灯光等）
+    VkWriteDescriptorSet
+    makeWriteDescriptorSetUBO(VkDescriptorSet dstSet, uint32_t binding,
+                              const VkDescriptorBufferInfo *bufferInfo);
+
+    // 创建写描述符集UBO  用于将纹理（ImageView + Sampler）
+    VkWriteDescriptorSet
+    makeWriteDescriptorSetSampler(VkDescriptorSet dstSet, uint32_t binding,
+                                  const VkDescriptorImageInfo *imageInfo);
+
     // 创建命令缓冲区记录 并绑定 开始单次命令
     VkCommandBuffer beginSingleTimeCommands();
 

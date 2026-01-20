@@ -608,51 +608,25 @@ void HelloTrangle::createRenderPass()
 void HelloTrangle::createDescriptorSetLayout()
 {
     // 描述符集布局信息
-    VkDescriptorSetLayoutBinding uboLayoutBinding{};
-    // shader里面的绑定ID
-    uboLayoutBinding.binding = 0;
-    // 描述符的类型
-    uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    // 缓冲区对象的数组中值的个数
-    uboLayoutBinding.descriptorCount = 1;
-    // 指定在哪些着色器阶段将引用描述符
-    uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-    // 字段仅与图像采样相关的描述符相关
-    uboLayoutBinding.pImmutableSamplers = nullptr; // 可选
+
+    // ubo MVP 布局绑定
+    VkDescriptorSetLayoutBinding uboMvpBindind = makeDescriptorSetLayoutBinding(
+        0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 1);
+
+    // ubo 颜色透明度 布局绑定
+    VkDescriptorSetLayoutBinding uboApColorBindind =
+        makeDescriptorSetLayoutBinding(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                       VK_SHADER_STAGE_FRAGMENT_BIT, 1);
 
     // 采样器布局绑定
-    VkDescriptorSetLayoutBinding samplerLayoutBinding{};
-    // shader里面的绑定ID
-    samplerLayoutBinding.binding = 1;
-    // 缓冲区对象的数组中值的个数
-    samplerLayoutBinding.descriptorCount = 1;
-
-    // 描述符的类型
-    samplerLayoutBinding.descriptorType =
-        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-
-    // 字段仅与图像采样相关的描述符相关
-    samplerLayoutBinding.pImmutableSamplers = nullptr; // 可选
-
-    // 指定在哪些着色器阶段将引用描述符
-    samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-    // 描述符集布局信息
-    VkDescriptorSetLayoutBinding uboApColorLayoutBinding{};
-    // shader里面的绑定ID
-    uboApColorLayoutBinding.binding = 2;
-    // 描述符的类型
-    uboApColorLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    // 缓冲区对象的数组中值的个数
-    uboApColorLayoutBinding.descriptorCount = 1;
-    // 指定在哪些着色器阶段将引用描述符
-    uboApColorLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-    // 字段仅与图像采样相关的描述符相关
-    uboApColorLayoutBinding.pImmutableSamplers = nullptr; // 可选
+    VkDescriptorSetLayoutBinding samplerLayoutBinding =
+        makeDescriptorSetLayoutBinding(
+            2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            VK_SHADER_STAGE_FRAGMENT_BIT, 1);
 
     // 描述符数组
     std::array<VkDescriptorSetLayoutBinding, 3> bindings = {
-        uboLayoutBinding, samplerLayoutBinding, uboApColorLayoutBinding};
+        uboMvpBindind, samplerLayoutBinding, uboApColorBindind};
 
     // 描述符集布局创建信息
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
@@ -1213,10 +1187,16 @@ void HelloTrangle::createDescriptorSets()
     for (size_t i = 0; i < _MAX_FRAMES_IN_FLIGHT; i++) {
 
         // 指定缓冲区以及其中包含描述符数据的区域
-        VkDescriptorBufferInfo bufferInfo{};
-        bufferInfo.buffer = _uniformMVP.buffers[i];
-        bufferInfo.offset = 0;
-        bufferInfo.range = sizeof(MVPMATRIX);
+        VkDescriptorBufferInfo mvpBufferInfo{};
+        mvpBufferInfo.buffer = _uniformMVP.buffers[i];
+        mvpBufferInfo.offset = 0;
+        mvpBufferInfo.range = sizeof(MVPMATRIX);
+
+        // 颜色透明度信息
+        VkDescriptorBufferInfo apColorBufferInfo{};
+        apColorBufferInfo.buffer = _uniformAlphaColor.buffers[i];
+        apColorBufferInfo.offset = 0;
+        apColorBufferInfo.range = sizeof(ALPHACOLOR);
 
         // 图像信息
         VkDescriptorImageInfo imageInfo{};
@@ -1224,56 +1204,19 @@ void HelloTrangle::createDescriptorSets()
         imageInfo.imageView = _textureImageView;
         imageInfo.sampler = _textureSampler;
 
-        // 颜色透明度信息
-        VkDescriptorBufferInfo bufferApColorInfo{};
-        bufferApColorInfo.buffer = _uniformAlphaColor.buffers[i];
-        bufferApColorInfo.offset = 0;
-        bufferApColorInfo.range = sizeof(ALPHACOLOR);
-
         // 描述符配置
         std::array<VkWriteDescriptorSet, 3> descriptorWrites{};
-        descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 
-        // 更新的描述符集
-        descriptorWrites[0].dstSet = _descriptorSets[i];
+        // MVP
+        descriptorWrites[0] =
+            makeWriteDescriptorSetUBO(_descriptorSets[i], 0, &mvpBufferInfo);
 
-        // 统一缓冲区绑定索引 0
-        descriptorWrites[0].dstBinding = 0;
-        descriptorWrites[0].dstArrayElement = 0;
-
-        // 再次指定描述符的类型
-        descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-
-        // 指定新的数组元素的数量
-        descriptorWrites[0].descriptorCount = 1;
-
-        // 配置了描述
-        descriptorWrites[0].pBufferInfo = &bufferInfo;
-        descriptorWrites[0].pImageInfo = nullptr;       // 可选
-        descriptorWrites[0].pTexelBufferView = nullptr; // 可选
-
-        // 配置纹理图像采样器描述符
-        descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[1].dstSet = _descriptorSets[i];
-        descriptorWrites[1].dstBinding = 1;
-        descriptorWrites[1].dstArrayElement = 0;
-        descriptorWrites[1].descriptorType =
-            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        descriptorWrites[1].descriptorCount = 1;
-        descriptorWrites[1].pImageInfo = &imageInfo;
-        descriptorWrites[1].pBufferInfo = nullptr;      // 可选
-        descriptorWrites[1].pTexelBufferView = nullptr; // 可选
-
-        // 配置颜色透明度 ubo
-        descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[2].dstSet = _descriptorSets[i];
-        descriptorWrites[2].dstBinding = 2;
-        descriptorWrites[2].dstArrayElement = 0;
-        descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        descriptorWrites[2].descriptorCount = 1;
-        descriptorWrites[2].pBufferInfo = &bufferApColorInfo;
-        descriptorWrites[2].pImageInfo = nullptr;       // 可选
-        descriptorWrites[2].pTexelBufferView = nullptr; // 可选
+        // 颜色透明度信息
+        descriptorWrites[1] = makeWriteDescriptorSetUBO(_descriptorSets[i], 1,
+                                                        &apColorBufferInfo);
+        // 图像信息
+        descriptorWrites[2] =
+            makeWriteDescriptorSetSampler(_descriptorSets[i], 2, &imageInfo);
 
         // 应用更新描述符
         vkUpdateDescriptorSets(_device,
@@ -1525,6 +1468,78 @@ void HelloTrangle::copyBuffer(VkBuffer srcBuffer, VkBuffer destBuffer,
 
     // 停止记录  清理用于传输操作的命令缓冲区
     endSingleTimeCommands(commandBuffer);
+}
+
+VkDescriptorSetLayoutBinding HelloTrangle::makeDescriptorSetLayoutBinding(
+    uint32_t binding, VkDescriptorType type, VkShaderStageFlags stageFlags,
+    uint32_t count)
+{
+
+    VkDescriptorSetLayoutBinding layoutBinding{};
+    // 对应 shader 中的 layout(binding = X)
+    layoutBinding.binding = binding;
+
+    // 描述符资源类型
+    layoutBinding.descriptorType = type;
+
+    // 绑定的描述符数量（非数组一般为 1）
+    layoutBinding.descriptorCount = count;
+
+    // 指定哪些 shader 阶段可以访问该资源
+    layoutBinding.stageFlags = stageFlags;
+
+    // 不使用不可变采样器（动态 sampler）
+    layoutBinding.pImmutableSamplers = nullptr;
+
+    return layoutBinding;
+}
+
+VkWriteDescriptorSet HelloTrangle::makeWriteDescriptorSetUBO(
+    VkDescriptorSet dstSet, uint32_t binding,
+    const VkDescriptorBufferInfo *bufferInfo)
+{
+    VkWriteDescriptorSet write{};
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+
+    // 目标描述符集
+    write.dstSet = dstSet;
+
+    // 对应 shader 中的 binding = X
+    write.dstBinding = binding;
+    write.dstArrayElement = 0;
+
+    // 描述符类型：Uniform Buffer
+    write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    write.descriptorCount = 1;
+
+    // 指向 Uniform Buffer 信息
+    write.pBufferInfo = bufferInfo;
+
+    return write;
+}
+
+VkWriteDescriptorSet HelloTrangle::makeWriteDescriptorSetSampler(
+    VkDescriptorSet dstSet, uint32_t binding,
+    const VkDescriptorImageInfo *imageInfo)
+{
+    VkWriteDescriptorSet write{};
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+
+    // 目标描述符集
+    write.dstSet = dstSet;
+
+    // 对应 shader 中的 binding = X
+    write.dstBinding = binding;
+    write.dstArrayElement = 0;
+
+    // 描述符类型：组合图像采样器
+    write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    write.descriptorCount = 1;
+
+    // 指向纹理采样器信息
+    write.pImageInfo = imageInfo;
+
+    return write;
 }
 
 VkCommandBuffer HelloTrangle::beginSingleTimeCommands()
