@@ -543,43 +543,12 @@ void HelloTrangle::createImageViews()
 void HelloTrangle::createRenderPass()
 {
     // ---------- 颜色附件（交换链图像） ----------
-    VkAttachmentDescription colorAttachment{};
-
-    // 必须与 swapchain 格式一致
-    colorAttachment.format = _swapChainImageFormat;
-
-    // 不使用 MSAA
-    colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-
-    // 渲染前清空
-    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-
-    // 渲染后保留（用于显示）
-    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-
-    // 不使用模板缓冲
-    colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-
-    // 初始布局无关
-    colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-
-    // 最终用于呈现
-    colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    VkAttachmentDescription colorAttachment = CreateColorAttachment(
+        _swapChainImageFormat, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
     // ---------- 深度附件 ----------
-    VkAttachmentDescription depthAttachment{};
-
-    // 查找支持的深度格式
-    depthAttachment.format = findDepthFormat();
-    depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-    depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    depthAttachment.finalLayout =
-        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    VkAttachmentDescription depthAttachment =
+        CreateDepthAttachment(findDepthFormat());
 
     // ---------- 颜色附件引用（子通道中使用） ----------
     VkAttachmentReference colorAttachmentRef{};
@@ -1595,6 +1564,64 @@ void HelloTrangle::copyBuffer(VkBuffer srcBuffer, VkBuffer destBuffer,
 
     // 停止记录  清理用于传输操作的命令缓冲区
     endSingleTimeCommands(commandBuffer);
+}
+
+VkAttachmentDescription
+HelloTrangle::CreateColorAttachment(VkFormat format, VkImageLayout finalLayout)
+{
+    VkAttachmentDescription desc{};
+
+    // 必须与 swapchain 格式一致
+    desc.format = format;
+
+    // 不使用 MSAA
+    desc.samples = VK_SAMPLE_COUNT_1_BIT;
+
+    // 渲染前清空
+    desc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+
+    // 渲染后保留（用于显示）
+    desc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
+    // 不使用模板缓冲
+    desc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    desc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+
+    // 初始布局无关
+    desc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+    // 最终用于呈现
+    desc.finalLayout = finalLayout;
+    return desc;
+}
+
+VkAttachmentDescription
+HelloTrangle::CreateDepthAttachment(VkFormat depthFormat)
+{
+    VkAttachmentDescription desc{};
+
+    // 格式
+    desc.format = depthFormat;
+
+    // 不使用 MSAA
+    desc.samples = VK_SAMPLE_COUNT_1_BIT;
+
+    // 渲染前清空
+    desc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+
+    // 渲染后保留（用于显示）
+    desc.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+
+    // 不使用模板缓冲
+    desc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    desc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+
+    // 初始布局无关
+    desc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+    // 最终用于呈现
+    desc.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    return desc;
 }
 
 VkDescriptorSetLayoutBinding HelloTrangle::makeDescriptorSetLayoutBinding(

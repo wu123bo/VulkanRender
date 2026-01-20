@@ -31,6 +31,7 @@ target_include_directories(${ProName}
         ${THIRD_PARTY_DIR}/gli
         ${THIRD_PARTY_DIR}/stb
         ${THIRD_PARTY_DIR}/imgui
+        ${THIRD_PARTY_DIR}/tinyobj
         ${THIRD_PARTY_DIR}/tinygltf
         ${THIRD_PARTY_DIR}/ktx/include
         ${THIRD_PARTY_DIR}/glfw/include

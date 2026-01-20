@@ -162,6 +162,13 @@ private:
     // 拷贝缓冲区
     void copyBuffer(VkBuffer srcBuffer, VkBuffer destBuffer, VkDeviceSize size);
 
+    // 创建颜色附件
+    VkAttachmentDescription CreateColorAttachment(VkFormat format,
+                                                  VkImageLayout finalLayout);
+
+    // 创建深度附件
+    VkAttachmentDescription CreateDepthAttachment(VkFormat depthFormat);
+
     // 创建描述符集布局绑定
     VkDescriptorSetLayoutBinding
     makeDescriptorSetLayoutBinding(uint32_t binding, VkDescriptorType type,
