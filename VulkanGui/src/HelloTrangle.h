@@ -139,14 +139,15 @@ private:
     void createDescriptorSets();
 
     // 创建纹理图像
-    void createImage(uint32_t width, uint32_t height, VkFormat format,
-                     VkImageTiling tiling, VkImageUsageFlags usage,
-                     VkMemoryPropertyFlags properties, VkImage &image,
-                     VkDeviceMemory &imageMemory);
+    void createImage(uint32_t width, uint32_t height, uint32_t mipLevels,
+                     VkFormat format, VkImageTiling tiling,
+                     VkImageUsageFlags usage, VkMemoryPropertyFlags properties,
+                     VkImage &image, VkDeviceMemory &imageMemory);
 
     // 创建图像视图
     VkImageView createImageView(VkImage image, VkFormat format,
-                                VkImageAspectFlags aspectFlags);
+                                VkImageAspectFlags aspectFlags,
+                                uint32_t mipLevels);
 
     // 创建缓冲区
     void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
@@ -155,8 +156,13 @@ private:
 
     // 布局转换
     void transitionImageLayout(VkImage image, VkFormat format,
-                               VkImageLayout oldLayout,
-                               VkImageLayout newLayout);
+                               VkImageLayout oldLayout, VkImageLayout newLayout,
+                               uint32_t mipLevels);
+
+    // 生成多级渐远纹理
+    void generateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth,
+                         int32_t texHeight,
+                         uint32_t mipLevels);
 
     // 将缓冲区复制到图像
     void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width,
@@ -359,6 +365,9 @@ private:
     VkImageView _depthImageView;
 
 private:
+    // 纹理图像 mip 级别
+    uint32_t _mipLevels;
+
     // 纹理图像
     VkImage _textureImage;
 

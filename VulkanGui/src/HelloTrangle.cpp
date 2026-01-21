@@ -542,7 +542,7 @@ void HelloTrangle::createImageViews()
         // 创建图像视图
         _swapChainImageViews[i] =
             createImageView(_swapChainImages[i], _swapChainImageFormat,
-                            VK_IMAGE_ASPECT_COLOR_BIT);
+                            VK_IMAGE_ASPECT_COLOR_BIT, 1);
     }
 }
 
@@ -930,17 +930,13 @@ void HelloTrangle::createDepthResources()
 
     // 创建深度图像
     createImage(
-        _swapChainExtent.width, _swapChainExtent.height, depthFormat,
+        _swapChainExtent.width, _swapChainExtent.height, 1, depthFormat,
         VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, _depthImage, _depthImageMemory);
 
     // 创建深度图像视图
     _depthImageView =
-        createImageView(_depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
-
-    // 图像布局转换
-    transitionImageLayout(_depthImage, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED,
-                          VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+        createImageView(_depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
 }
 
 void HelloTrangle::createTextureImage()
@@ -949,6 +945,11 @@ void HelloTrangle::createTextureImage()
     int texWidth, texHeight, texChannels;
     stbi_uc *pixels = stbi_load(_TEXTURE_PATH.c_str(), &texWidth, &texHeight,
                                 &texChannels, STBI_rgb_alpha);
+
+    // 计算纹理图像 mip 级别
+    _mipLevels =
+        static_cast<uint32_t>(std::floor(std::log2(max(texWidth, texHeight))))
+        + 1;
 
     // 像素数组大小
     VkDeviceSize imageSize = texWidth * texHeight * 4;
@@ -979,36 +980,44 @@ void HelloTrangle::createTextureImage()
     stbi_image_free(pixels);
 
     // 创建纹理图像
-    createImage(texWidth, texHeight, VK_FORMAT_R8G8B8A8_SRGB,
+    createImage(texWidth, texHeight, _mipLevels, VK_FORMAT_R8G8B8A8_SRGB,
                 VK_IMAGE_TILING_OPTIMAL,
-                VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+                    | VK_IMAGE_USAGE_TRANSFER_DST_BIT
+                    | VK_IMAGE_USAGE_SAMPLED_BIT,
                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, _textureImage,
                 _textureImageMemory);
 
     // 布局转换
     transitionImageLayout(_textureImage, VK_FORMAT_R8G8B8A8_SRGB,
                           VK_IMAGE_LAYOUT_UNDEFINED,
-                          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+                          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, _mipLevels);
 
     // 将缓冲区复制到图像
     copyBufferToImage(stagingBuffer, _textureImage,
                       static_cast<uint32_t>(texWidth),
                       static_cast<uint32_t>(texHeight));
     // 布局转换
-    transitionImageLayout(_textureImage, VK_FORMAT_R8G8B8A8_SRGB,
-                          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                          VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    // transitionImageLayout(_textureImage, VK_FORMAT_R8G8B8A8_SRGB,
+    //                      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+    //                      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+    //                      _mipLevels);
+    // 在生成多级渐进纹理时已转换为 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
 
     // 将数据从暂存缓冲区复制到设备缓冲区后，清理暂存缓冲区
     vkDestroyBuffer(_device, stagingBuffer, nullptr);
     vkFreeMemory(_device, stagingBufferMemory, nullptr);
+
+    // 生成多级渐远纹理
+    generateMipmaps(_textureImage, VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight,
+                    _mipLevels);
 }
 
 void HelloTrangle::createTextureImageView()
 {
     // 创建图像视图
     _textureImageView = createImageView(_textureImage, VK_FORMAT_R8G8B8A8_SRGB,
-                                        VK_IMAGE_ASPECT_COLOR_BIT);
+                                        VK_IMAGE_ASPECT_COLOR_BIT, _mipLevels);
 }
 
 void HelloTrangle::createTextureSampler()
@@ -1047,9 +1056,9 @@ void HelloTrangle::createTextureSampler()
 
     // mipmapping 设置信息
     samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-    samplerInfo.mipLodBias = 0.0f;
     samplerInfo.minLod = 0.0f;
-    samplerInfo.maxLod = 0.0f;
+    samplerInfo.maxLod = VK_LOD_CLAMP_NONE;
+    samplerInfo.mipLodBias = 0.0f;
 
     // 创建逻辑设备中的 deviceFeatures.samplerAnisotropy = VK_TRUE;
     // 除了强制要求各向异性过滤的可用性之外，也可以通过有条件地设置以下代码来简单地不使用它
@@ -1325,7 +1334,8 @@ void HelloTrangle::createDescriptorSets()
     }
 }
 
-void HelloTrangle::createImage(uint32_t width, uint32_t height, VkFormat format,
+void HelloTrangle::createImage(uint32_t width, uint32_t height,
+                               uint32_t mipLevels, VkFormat format,
                                VkImageTiling tiling, VkImageUsageFlags usage,
                                VkMemoryPropertyFlags properties, VkImage &image,
                                VkDeviceMemory &imageMemory)
@@ -1342,8 +1352,8 @@ void HelloTrangle::createImage(uint32_t width, uint32_t height, VkFormat format,
     imageInfo.extent.height = static_cast<uint32_t>(height);
     imageInfo.extent.depth = 1;
 
-    //
-    imageInfo.mipLevels = 1;
+    // 纹理图像 mip 级别
+    imageInfo.mipLevels = mipLevels;
     imageInfo.arrayLayers = 1;
 
     // 图像格式
@@ -1392,7 +1402,8 @@ void HelloTrangle::createImage(uint32_t width, uint32_t height, VkFormat format,
 }
 
 VkImageView HelloTrangle::createImageView(VkImage image, VkFormat format,
-                                          VkImageAspectFlags aspectFlags)
+                                          VkImageAspectFlags aspectFlags,
+                                          uint32_t mipLevels)
 {
     // 创建图像视图的创建信息结构体
     VkImageViewCreateInfo viewInfo{};
@@ -1417,9 +1428,8 @@ VkImageView HelloTrangle::createImageView(VkImage image, VkFormat format,
     // 从第 0 级 mipmap 开始
     viewInfo.subresourceRange.baseMipLevel = 0;
 
-    // 使用多少级 mipmap
-    // 你现在是 1 级（无 mipmap）
-    viewInfo.subresourceRange.levelCount = 1;
+    // 纹理图像 mip 级别
+    viewInfo.subresourceRange.levelCount = mipLevels;
 
     // 从第 0 层 array layer 开始
     viewInfo.subresourceRange.baseArrayLayer = 0;
@@ -1490,7 +1500,8 @@ void HelloTrangle::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
 
 void HelloTrangle::transitionImageLayout(VkImage image, VkFormat format,
                                          VkImageLayout oldLayout,
-                                         VkImageLayout newLayout)
+                                         VkImageLayout newLayout,
+                                         uint32_t mipLevels)
 {
     // 开始单次命令记录
     VkCommandBuffer commandBuffer = beginSingleTimeCommands();
@@ -1513,7 +1524,7 @@ void HelloTrangle::transitionImageLayout(VkImage image, VkFormat format,
     // 指定要转换的子资源（mipmap + layer）
     barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     barrier.subresourceRange.baseMipLevel = 0;
-    barrier.subresourceRange.levelCount = 1;
+    barrier.subresourceRange.levelCount = mipLevels;
     barrier.subresourceRange.baseArrayLayer = 0;
     barrier.subresourceRange.layerCount = 1;
 
@@ -1563,6 +1574,103 @@ void HelloTrangle::transitionImageLayout(VkImage image, VkFormat format,
                          nullptr, 0, nullptr, 1, &barrier);
 
     // 结束命令记录并提交
+    endSingleTimeCommands(commandBuffer);
+}
+
+void HelloTrangle::generateMipmaps(VkImage image, VkFormat imageFormat,
+                                   int32_t texWidth, int32_t texHeight,
+                                   uint32_t mipLevels)
+{
+    // 检查图像格式是否支持线性拷贝
+    VkFormatProperties formatProperties;
+    vkGetPhysicalDeviceFormatProperties(_physicalDevice, imageFormat,
+                                        &formatProperties);
+
+    if (!(formatProperties.optimalTilingFeatures
+          & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)) {
+        throw std::runtime_error("纹理图像格式不支持线性快速复制!");
+    }
+
+    // 创建命令缓冲区记录 并绑定 开始单次命令
+    VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+
+    // 设置图像内存屏障
+    VkImageMemoryBarrier barrier{};
+    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.image = image;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    barrier.subresourceRange.baseArrayLayer = 0;
+    barrier.subresourceRange.layerCount = 1;
+    barrier.subresourceRange.levelCount = 1;
+
+    int mipWidth = texWidth;
+    int mipHeight = texHeight;
+
+    // 记录每个VkCmdBlitImage 命令 循环在1开始
+    for (uint32_t i = 1; i < _mipLevels; i++) {
+        barrier.subresourceRange.baseMipLevel = i - 1;
+        barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+
+        // 执行管线屏障，实现布局转换
+        vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
+                             nullptr, 1, &barrier);
+
+        // 指定将在 blit 操作中使用的区域
+        VkImageBlit blit{};
+        blit.srcOffsets[0] = {0, 0, 0};
+        blit.srcOffsets[1] = {mipWidth, mipHeight, 1};
+        blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        blit.srcSubresource.mipLevel = i - 1;
+        blit.srcSubresource.baseArrayLayer = 0;
+        blit.srcSubresource.layerCount = 1;
+        blit.dstOffsets[0] = {0, 0, 0};
+        blit.dstOffsets[1] = {mipWidth > 1 ? mipWidth / 2 : 1,
+                              mipHeight > 1 ? mipHeight / 2 : 1, 1};
+        blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        blit.dstSubresource.mipLevel = i;
+        blit.dstSubresource.baseArrayLayer = 0;
+        blit.dstSubresource.layerCount = 1;
+
+        // 执行图像 blit 操作
+        vkCmdBlitImage(
+            commandBuffer, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, image,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit, VK_FILTER_LINEAR);
+
+        barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+        // 执行管线屏障，实现布局转换
+        vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0,
+                             nullptr, 0, nullptr, 1, &barrier);
+
+        if (mipWidth > 1) {
+            mipWidth /= 2;
+        }
+
+        if (mipHeight > 1) {
+            mipHeight /= 2;
+        }
+    }
+
+    barrier.subresourceRange.baseMipLevel = mipLevels - 1;
+    barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr,
+                         0, nullptr, 1, &barrier);
+
     endSingleTimeCommands(commandBuffer);
 }
 
