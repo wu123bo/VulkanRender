@@ -44,6 +44,13 @@ typedef glm::mat2 MAT_2;
 typedef glm::mat3 MAT_3;
 typedef glm::mat4 MAT_4;
 
+enum class AttachmentSlot : uint32_t
+{
+    Color = 0,
+    Depth = 1,
+    Resolve = 2
+};
+
 struct UNIFORMVEC
 {
     // uniform 缓冲区

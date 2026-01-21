@@ -93,6 +93,9 @@ void HelloTrangle::initVulkan()
     // 创建命令池
     createCommandPool();
 
+    // 创建多重采样颜色资源
+    createColorResources();
+
     // 创建深度资源
     createDepthResources();
 
@@ -358,6 +361,9 @@ void HelloTrangle::pickPhysicalDevice()
             // 选择该物理设备
             _physicalDevice = device;
 
+            // 获取当前设备支持的最大采样数
+            _msaaSamples = getMaxUsableSampleCount();
+
             // 获取物理设备属性信息
             VkPhysicalDeviceProperties deviceProperties;
             vkGetPhysicalDeviceProperties(device, &deviceProperties);
@@ -401,6 +407,9 @@ void HelloTrangle::createLogicalDevice()
 
     // 各向异性过滤实际上是一个可选的设备特性
     deviceFeatures.samplerAnisotropy = VK_TRUE;
+
+    // 为设备启用样本着色功能
+    deviceFeatures.sampleRateShading = VK_TRUE;
 
     // 逻辑设备创建信息
     VkDeviceCreateInfo createInfo{};
@@ -549,27 +558,36 @@ void HelloTrangle::createImageViews()
 void HelloTrangle::createRenderPass()
 {
     // ---------- 颜色附件（交换链图像） ----------
-    VkAttachmentDescription colorAttachment = CreateColorAttachment(
-        _swapChainImageFormat, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+    VkAttachmentDescription colorAttachment = CreateAttachment(
+        _swapChainImageFormat, _msaaSamples, VK_ATTACHMENT_LOAD_OP_CLEAR,
+        VK_ATTACHMENT_STORE_OP_STORE, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
     // ---------- 深度附件 ----------
-    VkAttachmentDescription depthAttachment =
-        CreateDepthAttachment(findDepthFormat());
+    VkAttachmentDescription depthAttachment = CreateAttachment(
+        findDepthFormat(), _msaaSamples, VK_ATTACHMENT_LOAD_OP_CLEAR,
+        VK_ATTACHMENT_STORE_OP_DONT_CARE,
+        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+
+    // ---------- 解析附件 ----------
+    // 因为多重采样的图像不能直接呈现
+    VkAttachmentDescription colorAttachmentResolve = CreateAttachment(
+        _swapChainImageFormat, VK_SAMPLE_COUNT_1_BIT,
+        VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_STORE,
+        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
     // ---------- 颜色附件引用（子通道中使用） ----------
-    VkAttachmentReference colorAttachmentRef{};
-
     // 对应 attachments[0]
-    colorAttachmentRef.attachment = 0;
-    colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    VkAttachmentReference colorAttachmentRef =
+        makeAttachmentRef(0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
     // ---------- 深度附件引用 ----------
-    VkAttachmentReference depthAttachmentRef{};
-
     // 对应 attachments[1]
-    depthAttachmentRef.attachment = 1;
-    depthAttachmentRef.layout =
-        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    VkAttachmentReference depthAttachmentRef =
+        makeAttachmentRef(1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+
+    // ---------- 解析附件引用 ----------
+    VkAttachmentReference colorAttachmentResolveRef =
+        makeAttachmentRef(2, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
     // ---------- 子通道描述 ----------
     VkSubpassDescription subpass{};
@@ -577,6 +595,7 @@ void HelloTrangle::createRenderPass()
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &colorAttachmentRef;
     subpass.pDepthStencilAttachment = &depthAttachmentRef;
+    subpass.pResolveAttachments = &colorAttachmentResolveRef;
 
     // ---------- 子通道依赖（同步） ----------
     VkSubpassDependency dependency{};
@@ -593,13 +612,14 @@ void HelloTrangle::createRenderPass()
     dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
                               | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
 
-    dependency.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    dependency.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+                               | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
     dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
                                | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
     // ---------- 附件列表 ----------
-    std::array<VkAttachmentDescription, 2> attachments = {colorAttachment,
-                                                          depthAttachment};
+    std::array<VkAttachmentDescription, 3> attachments = {
+        colorAttachment, depthAttachment, colorAttachmentResolve};
 
     // ---------- 创建渲染通道 ----------
     VkRenderPassCreateInfo renderPassInfo{};
@@ -748,9 +768,15 @@ void HelloTrangle::createGraphicsPipeline()
     VkPipelineMultisampleStateCreateInfo multisampling{};
     multisampling.sType =
         VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-    multisampling.sampleShadingEnable = VK_FALSE;
-    multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-    multisampling.minSampleShading = 1.0f;
+
+    // 在管线中启用样本着色
+    multisampling.sampleShadingEnable = VK_TRUE;
+
+    // 多重采样
+    multisampling.rasterizationSamples = _msaaSamples;
+
+    // 样本着色的最小分数；接近 1 更平滑
+    multisampling.minSampleShading = .2f;
     multisampling.pSampleMask = nullptr;
     multisampling.alphaToCoverageEnable = VK_FALSE;
     multisampling.alphaToOneEnable = VK_FALSE;
@@ -873,8 +899,8 @@ void HelloTrangle::createFramebuffers()
 
     // 迭代图像视图并从中创建帧缓冲
     for (size_t i = 0; i < _swapChainImageViews.size(); i++) {
-        std::array<VkImageView, 2> attachments = {_swapChainImageViews[i],
-                                                  _depthImageView};
+        std::array<VkImageView, 3> attachments = {
+            _colorImageView, _depthImageView, _swapChainImageViews[i]};
 
         // 创建帧缓冲信息
         VkFramebufferCreateInfo framebufferInfo{};
@@ -923,16 +949,35 @@ void HelloTrangle::createCommandPool()
     }
 }
 
+void HelloTrangle::createColorResources()
+{
+    // 交换表面格式
+    VkFormat colorFormat = _swapChainImageFormat;
+
+    // 创建多重采样颜色图像
+    createImage(_swapChainExtent.width, _swapChainExtent.height, 1,
+                _msaaSamples, colorFormat, VK_IMAGE_TILING_OPTIMAL,
+                VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT
+                    | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, _colorImage,
+                _colorImageMemory);
+
+    // 创建颜色图像视图
+    _colorImageView =
+        createImageView(_colorImage, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+}
+
 void HelloTrangle::createDepthResources()
 {
     // 查找深度格式
     VkFormat depthFormat = findDepthFormat();
 
     // 创建深度图像
-    createImage(
-        _swapChainExtent.width, _swapChainExtent.height, 1, depthFormat,
-        VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, _depthImage, _depthImageMemory);
+    createImage(_swapChainExtent.width, _swapChainExtent.height, 1,
+                _msaaSamples, depthFormat, VK_IMAGE_TILING_OPTIMAL,
+                VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, _depthImage,
+                _depthImageMemory);
 
     // 创建深度图像视图
     _depthImageView =
@@ -980,8 +1025,8 @@ void HelloTrangle::createTextureImage()
     stbi_image_free(pixels);
 
     // 创建纹理图像
-    createImage(texWidth, texHeight, _mipLevels, VK_FORMAT_R8G8B8A8_SRGB,
-                VK_IMAGE_TILING_OPTIMAL,
+    createImage(texWidth, texHeight, _mipLevels, VK_SAMPLE_COUNT_1_BIT,
+                VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL,
                 VK_IMAGE_USAGE_TRANSFER_SRC_BIT
                     | VK_IMAGE_USAGE_TRANSFER_DST_BIT
                     | VK_IMAGE_USAGE_SAMPLED_BIT,
@@ -1337,8 +1382,10 @@ void HelloTrangle::createDescriptorSets()
 }
 
 void HelloTrangle::createImage(uint32_t width, uint32_t height,
-                               uint32_t mipLevels, VkFormat format,
-                               VkImageTiling tiling, VkImageUsageFlags usage,
+                               uint32_t mipLevels,
+                               VkSampleCountFlagBits numSamples,
+                               VkFormat format, VkImageTiling tiling,
+                               VkImageUsageFlags usage,
                                VkMemoryPropertyFlags properties, VkImage &image,
                                VkDeviceMemory &imageMemory)
 {
@@ -1371,8 +1418,8 @@ void HelloTrangle::createImage(uint32_t width, uint32_t height,
     // 图像只能由一个队列族使用
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    // 图像将作为颜色目标使用，但不使用多重采样
-    imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    // 多重采样
+    imageInfo.samples = numSamples;
     imageInfo.flags = 0; // 可选
 
     // 创建图像
@@ -1728,62 +1775,47 @@ void HelloTrangle::copyBuffer(VkBuffer srcBuffer, VkBuffer destBuffer,
     endSingleTimeCommands(commandBuffer);
 }
 
-VkAttachmentDescription
-HelloTrangle::CreateColorAttachment(VkFormat format, VkImageLayout finalLayout)
+VkAttachmentDescription HelloTrangle::CreateAttachment(
+    VkFormat format, VkSampleCountFlagBits samples, VkAttachmentLoadOp loadOp,
+    VkAttachmentStoreOp storeOp, VkImageLayout finalLayout,
+    VkAttachmentLoadOp stencilLoadOp, VkAttachmentStoreOp stencilStoreOp,
+    VkImageLayout initialLayout)
 {
     VkAttachmentDescription desc{};
 
-    // 必须与 swapchain 格式一致
+    // 附件格式
     desc.format = format;
 
-    // 不使用 MSAA
-    desc.samples = VK_SAMPLE_COUNT_1_BIT;
+    // MSAA 采样数
+    desc.samples = samples;
 
-    // 渲染前清空
-    desc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    // 颜色 / 深度加载策略
+    desc.loadOp = loadOp;
 
-    // 渲染后保留（用于显示）
-    desc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    // 渲染结束后的存储策略
+    desc.storeOp = storeOp;
 
-    // 不使用模板缓冲
-    desc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    desc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    // 模板加载策略
+    desc.stencilLoadOp = stencilLoadOp;
 
-    // 初始布局无关
-    desc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    // 模板存储策略
+    desc.stencilStoreOp = stencilStoreOp;
 
-    // 最终用于呈现
+    // 初始布局
+    desc.initialLayout = initialLayout;
+
+    // 最终布局
     desc.finalLayout = finalLayout;
     return desc;
 }
 
-VkAttachmentDescription
-HelloTrangle::CreateDepthAttachment(VkFormat depthFormat)
+VkAttachmentReference HelloTrangle::makeAttachmentRef(uint32_t attachmentIndex,
+                                                      VkImageLayout layout)
 {
-    VkAttachmentDescription desc{};
-
-    // 格式
-    desc.format = depthFormat;
-
-    // 不使用 MSAA
-    desc.samples = VK_SAMPLE_COUNT_1_BIT;
-
-    // 渲染前清空
-    desc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-
-    // 渲染后保留（用于显示）
-    desc.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-
-    // 不使用模板缓冲
-    desc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    desc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-
-    // 初始布局无关
-    desc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-
-    // 最终用于呈现
-    desc.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-    return desc;
+    VkAttachmentReference ref{};
+    ref.attachment = attachmentIndex;
+    ref.layout = layout;
+    return ref;
 }
 
 VkDescriptorSetLayoutBinding HelloTrangle::makeDescriptorSetLayoutBinding(
@@ -1975,6 +2007,41 @@ VkFormat HelloTrangle::findDepthFormat()
                                VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
 }
 
+VkSampleCountFlagBits HelloTrangle::getMaxUsableSampleCount()
+{
+    // 获取物理设备属性
+    VkPhysicalDeviceProperties physicalDeviceProperties;
+    vkGetPhysicalDeviceProperties(_physicalDevice, &physicalDeviceProperties);
+
+    //
+    VkSampleCountFlags counts =
+        physicalDeviceProperties.limits.framebufferColorSampleCounts
+        & physicalDeviceProperties.limits.framebufferDepthSampleCounts;
+
+    // 判断物理设备支持的最大采样数
+    if (counts & VK_SAMPLE_COUNT_64_BIT) {
+        return VK_SAMPLE_COUNT_64_BIT;
+    }
+    if (counts & VK_SAMPLE_COUNT_32_BIT) {
+        return VK_SAMPLE_COUNT_32_BIT;
+    }
+    if (counts & VK_SAMPLE_COUNT_16_BIT) {
+        return VK_SAMPLE_COUNT_16_BIT;
+    }
+    if (counts & VK_SAMPLE_COUNT_8_BIT) {
+        return VK_SAMPLE_COUNT_8_BIT;
+    }
+    if (counts & VK_SAMPLE_COUNT_4_BIT) {
+        return VK_SAMPLE_COUNT_4_BIT;
+    }
+    if (counts & VK_SAMPLE_COUNT_2_BIT) {
+        return VK_SAMPLE_COUNT_2_BIT;
+    }
+
+    // 如果没有支持多重采样 则返回 1
+    return VK_SAMPLE_COUNT_1_BIT;
+}
+
 void HelloTrangle::createCommandBuffers()
 {
     // 根据同时处理帧数 分配
@@ -2148,6 +2215,11 @@ void HelloTrangle::cleanupSwapChain()
     vkDestroyImage(_device, _depthImage, nullptr);
     vkFreeMemory(_device, _depthImageMemory, nullptr);
 
+    // 清理多重采样资源
+    vkDestroyImageView(_device, _colorImageView, nullptr);
+    vkDestroyImage(_device, _colorImage, nullptr);
+    vkFreeMemory(_device, _colorImageMemory, nullptr);
+
     // 清理帧缓冲区
     for (auto framebuffer : _swapChainFramebuffers) {
         vkDestroyFramebuffer(_device, framebuffer, nullptr);
@@ -2183,6 +2255,9 @@ void HelloTrangle::recreateSwapChain()
 
     // 创建图像视图
     createImageViews();
+
+    // 创建多重采样资源
+    createColorResources();
 
     // 创建深度资源
     createDepthResources();
@@ -2308,8 +2383,10 @@ void HelloTrangle::updateUniformBuffer(uint32_t currentImage)
 
     MVPMATRIX ubo{};
     // 模型矩阵沿Z轴每秒旋转90°
-    ubo.model = glm::rotate(MAT_4(1.0f), time * glm::radians(90.0f),
-                            PTF_3D(0.0f, 0.0f, 1.0f));
+    // ubo.model = glm::rotate(MAT_4(1.0f), time * glm::radians(90.0f),
+    //                        PTF_3D(0.0f, 0.0f, 1.0f));
+
+    ubo.model = MAT_4(1.0f);
 
     // 视图矩阵
     ubo.view = glm::lookAt(PTF_3D(2.0f, 2.0f, 2.0f), PTF_3D(0.0f),

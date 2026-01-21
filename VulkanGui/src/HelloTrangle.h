@@ -108,6 +108,9 @@ private:
     // 创建命令池
     void createCommandPool();
 
+    // 创建多重采样颜色资源
+    void createColorResources();
+
     // 创建深度资源
     void createDepthResources();
 
@@ -140,9 +143,10 @@ private:
 
     // 创建纹理图像
     void createImage(uint32_t width, uint32_t height, uint32_t mipLevels,
-                     VkFormat format, VkImageTiling tiling,
-                     VkImageUsageFlags usage, VkMemoryPropertyFlags properties,
-                     VkImage &image, VkDeviceMemory &imageMemory);
+                     VkSampleCountFlagBits numSamples, VkFormat format,
+                     VkImageTiling tiling, VkImageUsageFlags usage,
+                     VkMemoryPropertyFlags properties, VkImage &image,
+                     VkDeviceMemory &imageMemory);
 
     // 创建图像视图
     VkImageView createImageView(VkImage image, VkFormat format,
@@ -161,8 +165,7 @@ private:
 
     // 生成多级渐远纹理
     void generateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth,
-                         int32_t texHeight,
-                         uint32_t mipLevels);
+                         int32_t texHeight, uint32_t mipLevels);
 
     // 将缓冲区复制到图像
     void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width,
@@ -171,12 +174,18 @@ private:
     // 拷贝缓冲区
     void copyBuffer(VkBuffer srcBuffer, VkBuffer destBuffer, VkDeviceSize size);
 
-    // 创建颜色附件
-    VkAttachmentDescription CreateColorAttachment(VkFormat format,
-                                                  VkImageLayout finalLayout);
+    // 创建附件
+    VkAttachmentDescription CreateAttachment(
+        VkFormat format, VkSampleCountFlagBits samples,
+        VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp,
+        VkImageLayout finalLayout,
+        VkAttachmentLoadOp stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+        VkAttachmentStoreOp stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+        VkImageLayout initialLayout = VK_IMAGE_LAYOUT_UNDEFINED);
 
-    // 创建深度附件
-    VkAttachmentDescription CreateDepthAttachment(VkFormat depthFormat);
+    // 创建附件引用
+    VkAttachmentReference makeAttachmentRef(uint32_t attachmentIndex,
+                                            VkImageLayout layout);
 
     // 创建描述符集布局绑定
     VkDescriptorSetLayoutBinding
@@ -214,6 +223,9 @@ private:
 
     // 查找深度格式
     VkFormat findDepthFormat();
+
+    // 获取最大可用采样数
+    VkSampleCountFlagBits getMaxUsableSampleCount();
 
     // 创建分配命令缓冲区
     void createCommandBuffers();
@@ -308,6 +320,9 @@ private:
     // vulkan 物理设备信息
     VkPhysicalDevice _physicalDevice = VK_NULL_HANDLE;
 
+    // 采样计数
+    VkSampleCountFlagBits _msaaSamples = VK_SAMPLE_COUNT_1_BIT;
+
     // vulkan 逻辑设备信息
     VkDevice _device = VK_NULL_HANDLE;
 
@@ -353,6 +368,16 @@ private:
 private:
     // 命令池
     VkCommandPool _commandPool;
+
+private:
+    // 多重采样颜色图像
+    VkImage _colorImage;
+
+    // 多重采样颜色图像内存
+    VkDeviceMemory _colorImageMemory;
+
+    // 多重采样颜色图像视图
+    VkImageView _colorImageView;
 
 private:
     // 深度图像
