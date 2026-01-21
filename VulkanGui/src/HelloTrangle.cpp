@@ -1057,6 +1057,8 @@ void HelloTrangle::createTextureSampler()
     // mipmapping 设置信息
     samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
     samplerInfo.minLod = 0.0f;
+    // 强制采样器不使用最低的 mip 层级
+    //  samplerInfo.minLod = static_cast<float>(_mipLevels / 2);
     samplerInfo.maxLod = VK_LOD_CLAMP_NONE;
     samplerInfo.mipLodBias = 0.0f;
 
@@ -1581,20 +1583,21 @@ void HelloTrangle::generateMipmaps(VkImage image, VkFormat imageFormat,
                                    int32_t texWidth, int32_t texHeight,
                                    uint32_t mipLevels)
 {
-    // 检查图像格式是否支持线性拷贝
+    // 查询格式特性，检查该格式是否支持线性过滤的 blit（生成 mipmap 必须）
     VkFormatProperties formatProperties;
     vkGetPhysicalDeviceFormatProperties(_physicalDevice, imageFormat,
                                         &formatProperties);
 
+    // 若不支持线性过滤，则无法使用 vkCmdBlitImage 生成 mipmap
     if (!(formatProperties.optimalTilingFeatures
           & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)) {
         throw std::runtime_error("纹理图像格式不支持线性快速复制!");
     }
 
-    // 创建命令缓冲区记录 并绑定 开始单次命令
+    // 创建并开始一次性命令缓冲（常用于资源初始化）
     VkCommandBuffer commandBuffer = beginSingleTimeCommands();
 
-    // 设置图像内存屏障
+    // 公用的图像内存屏障（在循环中复用，只修改必要字段）
     VkImageMemoryBarrier barrier{};
     barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
     barrier.image = image;
@@ -1603,32 +1606,33 @@ void HelloTrangle::generateMipmaps(VkImage image, VkFormat imageFormat,
     barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     barrier.subresourceRange.baseArrayLayer = 0;
     barrier.subresourceRange.layerCount = 1;
-    barrier.subresourceRange.levelCount = 1;
+    barrier.subresourceRange.levelCount = 1; // 每次只处理一个 mip level
 
     int mipWidth = texWidth;
     int mipHeight = texHeight;
 
-    // 记录每个VkCmdBlitImage 命令 循环在1开始
+    // 从 mip level 1 开始，由 level 0 逐级向下生成
     for (uint32_t i = 1; i < _mipLevels; i++) {
+        // 将上一层 mip 从 DST 转为 SRC，用作 blit 的源
         barrier.subresourceRange.baseMipLevel = i - 1;
         barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
         barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
         barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
         barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
 
-        // 执行管线屏障，实现布局转换
         vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
                              VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
                              nullptr, 1, &barrier);
 
-        // 指定将在 blit 操作中使用的区域
+        // 定义 blit 区域：从上一层 mip 缩小拷贝到当前层
         VkImageBlit blit{};
         blit.srcOffsets[0] = {0, 0, 0};
-        blit.srcOffsets[1] = {mipWidth, mipHeight, 1};
+        blit.srcOffsets[1] = {mipWidth, mipHeight, 1}; // 2D image：z 必须是 1
         blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         blit.srcSubresource.mipLevel = i - 1;
         blit.srcSubresource.baseArrayLayer = 0;
         blit.srcSubresource.layerCount = 1;
+
         blit.dstOffsets[0] = {0, 0, 0};
         blit.dstOffsets[1] = {mipWidth > 1 ? mipWidth / 2 : 1,
                               mipHeight > 1 ? mipHeight / 2 : 1, 1};
@@ -1637,21 +1641,22 @@ void HelloTrangle::generateMipmaps(VkImage image, VkFormat imageFormat,
         blit.dstSubresource.baseArrayLayer = 0;
         blit.dstSubresource.layerCount = 1;
 
-        // 执行图像 blit 操作
+        // 执行 mipmap 生成的 blit 操作
         vkCmdBlitImage(
             commandBuffer, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, image,
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit, VK_FILTER_LINEAR);
 
+        // 将上一层 mip 转换为 shader 只读布局
         barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
         barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
         barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
-        // 执行管线屏障，实现布局转换
         vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
                              VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0,
                              nullptr, 0, nullptr, 1, &barrier);
 
+        // 计算下一层 mip 的尺寸（最小为 1）
         if (mipWidth > 1) {
             mipWidth /= 2;
         }
@@ -1661,6 +1666,7 @@ void HelloTrangle::generateMipmaps(VkImage image, VkFormat imageFormat,
         }
     }
 
+    // 最后一层 mip 从 TRANSFER_DST 转为 SHADER_READ_ONLY
     barrier.subresourceRange.baseMipLevel = mipLevels - 1;
     barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
     barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -1671,6 +1677,7 @@ void HelloTrangle::generateMipmaps(VkImage image, VkFormat imageFormat,
                          VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr,
                          0, nullptr, 1, &barrier);
 
+    // 提交命令并等待执行完成
     endSingleTimeCommands(commandBuffer);
 }
 
