@@ -27,7 +27,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 # 项目选项
 # ---------------------------
 option(USE_OPENMP "启用 OpenMP" ON)
-option(PROJECT_VULKANGUI "启用 VulkanGui" ON)
+option(PROJECT_HELLOVK "启用 VulkanGui" ON)
 
 # ---------------------------
 # 平台检测 
@@ -66,7 +66,8 @@ set(THIRD_PARTY_DIR ${CMAKE_SOURCE_DIR}/3rd)
 # ---------------------------
 # 子模块
 # ---------------------------
-if (PROJECT_VULKANGUI)
+if (PROJECT_HELLOVK)
     add_subdirectory(3rd/glfw)
-    add_subdirectory(VulkanGui)
+    add_subdirectory(HelloVulkan)
+    add_subdirectory(VulkanBase)
 endif()

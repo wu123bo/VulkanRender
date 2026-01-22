@@ -1,0 +1,55 @@
+核心（Core）
+
+VulkanBase  
+功能简介: 总控类，负责 Vulkan 生命周期管理、子系统初始化与销毁，串联各模块。对外暴露必要接口（如 VkInstance、VkDevice、SwapchainExtent 等）。
+
+VulkanInstance  
+功能简介: 管理 VkInstance，包含 Validation Layer、扩展管理、Debug Messenger，初始化 Vulkan 实例。
+
+VulkanPhysicalDevice  
+功能简介: 选择物理设备（GPU），检测 Queue Family、设备特性、Swapchain 支持，选择最优 GPU。
+
+VulkanDevice  
+功能简介: 逻辑设备管理，创建 VkDevice，获取 Graphics / Compute / Present Queue，启用特性。
+
+
+窗口 & Swapchain（Window）
+
+VulkanSurface  
+功能简介: 窗口表面管理，创建 VkSurfaceKHR，绑定 GLFW 窗口，供 Swapchain 使用。
+
+VulkanSwapchain  
+功能简介: Swapchain 管理，创建/重建 Swapchain，管理 Images、ImageViews、Format、Extent，支持窗口 resize。
+
+
+渲染流程（Render）
+
+VulkanRenderPass  
+功能简介: 创建 VkRenderPass，定义渲染流程和附件（Attachments）。
+
+VulkanFramebuffer  
+功能简介: 创建 Framebuffer，绑定 Swapchain 的 ImageViews，供渲染使用。
+
+VulkanPipeline  
+功能简介: 管理 Graphics / Compute Pipeline，包含 Shader Module、Pipeline Layout、Pipeline 创建。
+
+
+命令缓冲（Command）
+
+VulkanCommandPool  
+功能简介: 创建 Command Pool，用于分配 Command Buffer。
+
+VulkanCommandBuffer  
+功能简介: 分配和管理 Command Buffer，封装 Begin / End 命令记录。
+
+
+同步（Sync）
+
+VulkanSync  
+功能简介: 管理同步对象 Semaphore、Fence，用于 GPU 与 CPU 协调渲染顺序。
+
+
+辅助工具（Utils）
+
+VulkanUtils
+功能简介: 工具类，提供 Shader 加载、扩展检查、Queue Family 查询等通用辅助函数。

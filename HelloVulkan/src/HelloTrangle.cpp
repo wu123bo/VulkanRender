@@ -2383,10 +2383,10 @@ void HelloTrangle::updateUniformBuffer(uint32_t currentImage)
 
     MVPMATRIX ubo{};
     // 模型矩阵沿Z轴每秒旋转90°
-    // ubo.model = glm::rotate(MAT_4(1.0f), time * glm::radians(90.0f),
-    //                        PTF_3D(0.0f, 0.0f, 1.0f));
+    ubo.model = glm::rotate(MAT_4(1.0f), time * glm::radians(90.0f),
+                            PTF_3D(0.0f, 0.0f, 1.0f));
 
-    ubo.model = MAT_4(1.0f);
+    // ubo.model = MAT_4(1.0f);
 
     // 视图矩阵
     ubo.view = glm::lookAt(PTF_3D(2.0f, 2.0f, 2.0f), PTF_3D(0.0f),
