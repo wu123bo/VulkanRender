@@ -21,22 +21,6 @@
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include "GLFW/glfw3native.h"
 
-// 队列族索引
-struct QueueFamilyIndices
-{
-    // 图形命令队列族
-    std::optional<uint32_t> graphicsFamily;
-
-    // 呈现表面队列族
-    std::optional<uint32_t> presentFamily;
-
-    // 通用检查
-    bool isComplete()
-    {
-        return graphicsFamily.has_value() && presentFamily.has_value();
-    }
-};
-
 // 交换链是否支持信息
 struct SwapChainSupportDetails
 {

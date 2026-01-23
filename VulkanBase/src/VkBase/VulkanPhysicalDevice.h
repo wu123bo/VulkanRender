@@ -20,30 +20,6 @@ namespace VKB
 
 class VulkanPhysicalDevice
 {
-private:
-    // 队列族索引
-    struct QueueFamily
-    {
-        // 支持图形操作的队列族索引
-        std::optional<uint32_t> graphicsFamily;
-
-        // 支持呈现操作的队列族索引
-        std::optional<uint32_t> presentFamily;
-
-        // 重置
-        void Reset()
-        {
-            graphicsFamily.reset();
-            presentFamily.reset();
-        }
-
-        // 通用检查
-        bool isComplete()
-        {
-            return graphicsFamily.has_value() && presentFamily.has_value();
-        }
-    };
-
 public:
     VulkanPhysicalDevice();
 
@@ -61,6 +37,14 @@ public:
     VkPhysicalDevice Get() const
     {
         return _physicalDevice;
+    }
+
+    /**
+     * @brief Queue Family
+     */
+    QueueFamilyIndices GetQueueFamily() const
+    {
+        return _queueFamilyIndices;
     }
 
     /**
@@ -116,13 +100,14 @@ private:
     VkPhysicalDevice _physicalDevice = VK_NULL_HANDLE;
 
     // 队列族索引
-    QueueFamily _queueFamilyIndices;
+    QueueFamilyIndices _queueFamilyIndices;
 
     // 设备属性
     VkPhysicalDeviceProperties _properties{};
 
     // 必需的设备扩展
     const std::vector<const char *> _requiredExtensions = {
+        // 交换链(swapChain)扩展
         VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 };
 

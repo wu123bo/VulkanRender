@@ -2,12 +2,36 @@
 #define VULKANHEAD_H_
 
 #include <array>
+#include <optional>
 #include <unordered_map>
 
 #include "MacroHead.h"
 #include "vulkan/vulkan.h"
 
 #include "GLFW/glfw3.h"
+
+// 队列族索引
+struct QueueFamilyIndices
+{
+    // 支持图形操作的队列族索引
+    std::optional<uint32_t> graphicsFamily;
+
+    // 支持呈现操作的队列族索引
+    std::optional<uint32_t> presentFamily;
+
+    // 重置
+    void Reset()
+    {
+        graphicsFamily.reset();
+        presentFamily.reset();
+    }
+
+    // 通用检查
+    bool isComplete()
+    {
+        return graphicsFamily.has_value() && presentFamily.has_value();
+    }
+};
 
 struct UniformVec
 {

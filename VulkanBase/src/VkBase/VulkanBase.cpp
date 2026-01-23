@@ -10,6 +10,7 @@ VulkanBase::VulkanBase()
     _instance = new VulkanInstance();
     _surface = new VulkanSurface();
     _physicalDevice = new VulkanPhysicalDevice();
+    _device = new VulkanDevice();
 }
 
 VulkanBase::~VulkanBase()
@@ -35,6 +36,10 @@ int VulkanBase::InitVulkan(GLFWwindow *window)
         return false;
     }
 
+    if (!_device->Init(_physicalDevice)) {
+        return false;
+    }
+
     _initialized = true;
 
     return true;
@@ -42,9 +47,18 @@ int VulkanBase::InitVulkan(GLFWwindow *window)
 
 void VulkanBase::Shutdown()
 {
-    // 销毁顺序不能乱
+    /* 销毁顺序不能乱*/
+
+    // 逻辑设备
+    SDelete(_device);
+
+    // 物理设备
+    SDelete(_physicalDevice);
+
+    // 窗口表面
     SDelete(_surface);
 
+    // vulkan 实例
     SDelete(_instance);
 }
 

@@ -3,6 +3,7 @@
 
 #include "MacroHead.h"
 
+#include "VulkanDevice.h"
 #include "VulkanInstance.h"
 #include "VulkanPhysicalDevice.h"
 #include "VulkanSurface.h"
@@ -31,6 +32,8 @@ private:
     VulkanSurface *_surface = nullptr;
 
     VulkanPhysicalDevice *_physicalDevice = nullptr;
+
+    VulkanDevice *_device = nullptr;
 
 private:
     bool _initialized = false;
