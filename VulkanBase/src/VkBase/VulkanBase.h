@@ -3,6 +3,9 @@
 
 #include "MacroHead.h"
 
+#include "VulkanInstance.h"
+#include "VulkanSurface.h"
+
 namespace VKB
 {
 class VulkanBase
@@ -12,7 +15,22 @@ public:
 
     virtual ~VulkanBase();
 
-    virtual int CreateInstance();
+    virtual int InitVulkan(GLFWwindow *window);
+
+    void Shutdown();
+
+private:
+    bool createInstance();
+
+    bool createSurface(GLFWwindow *window);
+
+private:
+    VulkanInstance *_instance = nullptr;
+
+    VulkanSurface *_surface = nullptr;
+
+private:
+    bool _initialized = false;
 };
 } // namespace VKB
 

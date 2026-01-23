@@ -19,6 +19,13 @@ inline void PrintMsg(std::string_view info, std::string_view msg)
 #endif
 }
 
+inline void PrintError(std::string_view msg)
+{
+#ifndef NDEBUG
+    std::cerr << "错误信息" << ": " << msg << std::endl;
+#endif
+}
+
 } // namespace PSG
 
 #endif // !PRINTMEG_H_
