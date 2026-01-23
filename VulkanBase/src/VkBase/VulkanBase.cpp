@@ -41,12 +41,12 @@ int VulkanBase::InitVulkan(GLFWwindow *window)
         return false;
     }
 
-    glfwGetFramebufferSize(window, &width, &height);
+    glfwGetFramebufferSize(window, &_width, &_height);
 
     if (!_swapchain->Init(
             _physicalDevice->Get(), _device->Get(), _surface->Get(),
             _physicalDevice->GetGraphicsQueueFamily(),
-            _physicalDevice->GetPresentQueueFamily(), width, height)) {
+            _physicalDevice->GetPresentQueueFamily(), _width, _height)) {
         return false;
     }
 

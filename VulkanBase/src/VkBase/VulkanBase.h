@@ -39,7 +39,9 @@ private:
     VulkanSwapchain *_swapchain = nullptr;
 
 private:
-    int width, height;
+    int _width = 0;
+
+    int _height = 0;
 
     bool _initialized = false;
 };
