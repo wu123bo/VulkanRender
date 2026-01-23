@@ -3,14 +3,9 @@
 
 #define GLM_ENABLE_EXPERIMENTAL
 
-#include <array>
-#include <unordered_map>
-
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtx/hash.hpp"
-
-#include "vulkan/vulkan.h"
 
 #ifndef SDelete
 #define SDelete(ptr)                                                           \
@@ -43,122 +38,5 @@ typedef glm::ivec4 PTI_4D;
 typedef glm::mat2 MAT_2;
 typedef glm::mat3 MAT_3;
 typedef glm::mat4 MAT_4;
-
-enum class AttachmentSlot : uint32_t
-{
-    Color = 0,
-    Depth = 1,
-    Resolve = 2
-};
-
-struct UNIFORMVEC
-{
-    // uniform 缓冲区
-    std::vector<VkBuffer> buffers;
-
-    // uniform 缓冲区内存
-    std::vector<VkDeviceMemory> buffersMemory;
-
-    // uniform 缓冲区内存映射
-    std::vector<void *> buffersMapped;
-};
-
-// 矩阵信息结构体
-struct MVPMATRIX
-{
-    // alignas(16) 字节对齐 必须是16的倍数
-    alignas(16) MAT_4 model;
-    alignas(16) MAT_4 view;
-    alignas(16) MAT_4 proj;
-};
-
-// 颜色透明度
-struct ALPHACOLOR
-{
-    // alignas(16) 字节对齐 必须是16的倍数
-    alignas(16) float alpha;
-    alignas(16) PTF_3D color;
-};
-
-// 顶点坐标颜色结构体
-struct VERTEX
-{
-    PTF_3D pos;
-    PTF_3D color;
-    PTF_2D texCoord;
-
-    // 绑定描述
-    //  顶点绑定描述了在整个顶点中从内存加载数据的速率
-    static VkVertexInputBindingDescription getBindingDescription()
-    {
-        VkVertexInputBindingDescription bindingDescription{};
-        // 指定绑定数组中绑定的索引
-        bindingDescription.binding = 0;
-        // 指定从一个条目到下一个条目的字节数
-        bindingDescription.stride = sizeof(VERTEX);
-        // 在每个顶点之后移动到下一个数据条目
-        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-        return bindingDescription;
-    }
-
-    // 属性描述
-    // 属性描述结构描述了如何从来自绑定描述的顶点数据块中提取顶点属性
-    static std::array<VkVertexInputAttributeDescription, 3>
-    getAttributeDescriptions()
-    {
-        std::array<VkVertexInputAttributeDescription, 3>
-            attributeDescriptions{};
-        // 告诉 Vulkan 每个顶点的数据来自哪个绑定
-        attributeDescriptions[0].binding = 0;
-        // 引用顶点着色器中输入的 location 指令
-        attributeDescriptions[0].location = 0;
-        // 描述属性的数据类型
-        attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-        // 定自每个顶点数据的开始读取的字节数
-        attributeDescriptions[0].offset = offsetof(VERTEX, pos);
-
-        // format例如
-        // float：VK_FORMAT_R32_SFLOAT
-        // vec2：VK_FORMAT_R32G32_SFLOAT
-
-        // 颜色属性相同设置
-        attributeDescriptions[1].binding = 0;
-        attributeDescriptions[1].location = 1;
-        attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-        attributeDescriptions[1].offset = offsetof(VERTEX, color);
-
-        // 颜色属性相同设置
-        attributeDescriptions[2].binding = 0;
-        attributeDescriptions[2].location = 2;
-        attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
-        attributeDescriptions[2].offset = offsetof(VERTEX, texCoord);
-
-        return attributeDescriptions;
-    }
-
-    // 用于 unordered_map 的相等运算符
-    bool operator==(const VERTEX &other) const
-    {
-        return pos == other.pos && color == other.color
-               && texCoord == other.texCoord;
-    }
-};
-
-// 特化 hash 函数 用于 unordered_map
-namespace std
-{
-template<>
-struct hash<VERTEX>
-{
-    size_t operator()(VERTEX const &vertex) const
-    {
-        return ((hash<glm::vec3>()(vertex.pos)
-                 ^ (hash<glm::vec3>()(vertex.color) << 1))
-                >> 1)
-               ^ (hash<glm::vec2>()(vertex.texCoord) << 1);
-    }
-};
-} // namespace std
 
 #endif // !MACROHEAD_H_

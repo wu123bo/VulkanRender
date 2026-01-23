@@ -713,9 +713,9 @@ void HelloTrangle::createGraphicsPipeline()
         VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 
     // 绑定描述
-    auto bindingDescription = VERTEX::getBindingDescription();
+    auto bindingDescription = VerCorTex::getBindingDescription();
     // 属性描述
-    auto attributeDescriptions = VERTEX::getAttributeDescriptions();
+    auto attributeDescriptions = VerCorTex::getAttributeDescriptions();
 
     // 坐标数据绑定描述
     vertexInputInfo.vertexBindingDescriptionCount = 1;
@@ -1133,11 +1133,11 @@ void HelloTrangle::loadModel()
     }
 
     // 用于存储唯一顶点的哈希映射
-    std::unordered_map<VERTEX, uint32_t> uniqueVertices{};
+    std::unordered_map<VerCorTex, uint32_t> uniqueVertices{};
 
     for (const auto &shape : shapes) {
         for (const auto &index : shape.mesh.indices) {
-            VERTEX vertex{};
+            VerCorTex vertex{};
 
             vertex.pos = {attrib.vertices[3 * index.vertex_index + 0],
                           attrib.vertices[3 * index.vertex_index + 1],
@@ -1245,8 +1245,8 @@ void HelloTrangle::createIndexBuffer()
 void HelloTrangle::createUniformBuffers()
 {
     // 计算结构内存大小
-    VkDeviceSize bufferSize = sizeof(MVPMATRIX);
-    VkDeviceSize apColorBufferSize = sizeof(ALPHACOLOR);
+    VkDeviceSize bufferSize = sizeof(MvpMatrix);
+    VkDeviceSize apColorBufferSize = sizeof(AlphaColor);
 
     // 分配处理帧数量大小
     _uniformMVP.buffers.resize(_MAX_FRAMES_IN_FLIGHT);
@@ -1346,13 +1346,13 @@ void HelloTrangle::createDescriptorSets()
         VkDescriptorBufferInfo mvpBufferInfo{};
         mvpBufferInfo.buffer = _uniformMVP.buffers[i];
         mvpBufferInfo.offset = 0;
-        mvpBufferInfo.range = sizeof(MVPMATRIX);
+        mvpBufferInfo.range = sizeof(MvpMatrix);
 
         // 颜色透明度信息
         VkDescriptorBufferInfo apColorBufferInfo{};
         apColorBufferInfo.buffer = _uniformAlphaColor.buffers[i];
         apColorBufferInfo.offset = 0;
-        apColorBufferInfo.range = sizeof(ALPHACOLOR);
+        apColorBufferInfo.range = sizeof(AlphaColor);
 
         // 图像信息
         VkDescriptorImageInfo imageInfo{};
@@ -2381,7 +2381,7 @@ void HelloTrangle::updateUniformBuffer(uint32_t currentImage)
 
     /**************更新 MVP ubo***************************/
 
-    MVPMATRIX ubo{};
+    MvpMatrix ubo{};
     // 模型矩阵沿Z轴每秒旋转90°
     ubo.model = glm::rotate(MAT_4(1.0f), time * glm::radians(90.0f),
                             PTF_3D(0.0f, 0.0f, 1.0f));
@@ -2411,7 +2411,7 @@ void HelloTrangle::updateUniformBuffer(uint32_t currentImage)
         firstCall = false;
     }
 
-    ALPHACOLOR colorUbo{};
+    AlphaColor colorUbo{};
     colorUbo.color = glm::vec3(1.0f);
     colorUbo.alpha = static_cast<float>(std::rand()) / RAND_MAX;
 

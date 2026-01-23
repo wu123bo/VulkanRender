@@ -1,7 +1,7 @@
 ﻿#ifndef VULKANINSTANCE_H_
 #define VULKANINSTANCE_H_
 
-#include "MacroHead.h"
+#include "VulkanHead.h"
 
 namespace VKB
 {

@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "MacroHead.h"
+#include "VulkanHead.h"
 
 #define VK_USE_PLATFORM_WIN32_KHR
 #define GLFW_INCLUDE_VULKAN
@@ -420,10 +421,10 @@ private:
 
 private:
     // uniform 矩阵缓冲区
-    UNIFORMVEC _uniformMVP;
+    UniformVec _uniformMVP;
 
     // uniform 颜色透明度缓冲区
-    UNIFORMVEC _uniformAlphaColor;
+    UniformVec _uniformAlphaColor;
 
 private:
     // 描述符池句柄
@@ -484,7 +485,7 @@ private:
     std::vector<uint32_t> _indices;
 
     // 顶点结构：位置 + 颜色 + UV
-    std::vector<VERTEX> _vertices;
+    std::vector<VerCorTex> _vertices;
 };
 
 #endif // !HELLOTRANGLE_H_

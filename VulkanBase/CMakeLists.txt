@@ -7,6 +7,7 @@ project(${ProName})
 set(SRC
     ${COMMON}/PrintMsg.h
     ${COMMON}/MacroHead.h
+    ${COMMON}/VulkanHead.h
 
     src/main.cpp
 

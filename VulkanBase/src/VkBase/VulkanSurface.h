@@ -1,9 +1,7 @@
 ﻿#ifndef VULKANSURFACE_H_
 #define VULKANSURFACE_H_
 
-#include "MacroHead.h"
-
-#include "GLFW/glfw3.h"
+#include "VulkanHead.h"
 
 namespace VKB
 {
