@@ -33,6 +33,19 @@ struct QueueFamilyIndices
     }
 };
 
+// Swapchain 支持信息（由 物理设备 + Surface 决定）
+struct SupportDetails
+{
+    // Surface 能力：图像数量、分辨率范围、变换方式等
+    VkSurfaceCapabilitiesKHR capabilities;
+
+    // 支持的 Swapchain 图像格式（格式 + 颜色空间）
+    std::vector<VkSurfaceFormatKHR> formats;
+
+    // 支持的呈现模式（FIFO / MAILBOX / IMMEDIATE 等）
+    std::vector<VkPresentModeKHR> presentModes;
+};
+
 struct UniformVec
 {
     // uniform 缓冲区

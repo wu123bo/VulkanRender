@@ -11,6 +11,7 @@ VulkanBase::VulkanBase()
     _surface = new VulkanSurface();
     _physicalDevice = new VulkanPhysicalDevice();
     _device = new VulkanDevice();
+    _swapchain = new VulkanSwapchain();
 }
 
 VulkanBase::~VulkanBase()
@@ -40,6 +41,15 @@ int VulkanBase::InitVulkan(GLFWwindow *window)
         return false;
     }
 
+    glfwGetFramebufferSize(window, &width, &height);
+
+    if (!_swapchain->Init(
+            _physicalDevice->Get(), _device->Get(), _surface->Get(),
+            _physicalDevice->GetGraphicsQueueFamily(),
+            _physicalDevice->GetPresentQueueFamily(), width, height)) {
+        return false;
+    }
+
     _initialized = true;
 
     return true;
@@ -48,6 +58,9 @@ int VulkanBase::InitVulkan(GLFWwindow *window)
 void VulkanBase::Shutdown()
 {
     /* 销毁顺序不能乱*/
+
+    // 交换链
+    SDelete(_swapchain);
 
     // 逻辑设备
     SDelete(_device);

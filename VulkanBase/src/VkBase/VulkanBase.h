@@ -7,6 +7,7 @@
 #include "VulkanInstance.h"
 #include "VulkanPhysicalDevice.h"
 #include "VulkanSurface.h"
+#include "VulkanSwapchain.h"
 
 namespace VKB
 {
@@ -35,7 +36,11 @@ private:
 
     VulkanDevice *_device = nullptr;
 
+    VulkanSwapchain *_swapchain = nullptr;
+
 private:
+    int width, height;
+
     bool _initialized = false;
 };
 } // namespace VKB
