@@ -9,6 +9,7 @@ VulkanBase::VulkanBase()
 {
     _instance = new VulkanInstance();
     _surface = new VulkanSurface();
+    _physicalDevice = new VulkanPhysicalDevice();
 }
 
 VulkanBase::~VulkanBase()
@@ -27,6 +28,10 @@ int VulkanBase::InitVulkan(GLFWwindow *window)
     }
 
     if (!createSurface(window)) {
+        return false;
+    }
+
+    if (!_physicalDevice->Pick(_instance->Get(), _surface->Get())) {
         return false;
     }
 

@@ -4,6 +4,7 @@
 #include "MacroHead.h"
 
 #include "VulkanInstance.h"
+#include "VulkanPhysicalDevice.h"
 #include "VulkanSurface.h"
 
 namespace VKB
@@ -28,6 +29,8 @@ private:
     VulkanInstance *_instance = nullptr;
 
     VulkanSurface *_surface = nullptr;
+
+    VulkanPhysicalDevice *_physicalDevice = nullptr;
 
 private:
     bool _initialized = false;
