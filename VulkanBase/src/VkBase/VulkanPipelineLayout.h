@@ -34,6 +34,9 @@ public:
 
     void Destroy();
 
+    /**
+     * @brief 获取管线布局
+     */
     VkPipelineLayout Get() const
     {
         return _pipelineLayout;
