@@ -12,6 +12,8 @@ VulkanBase::VulkanBase()
     _physicalDevice = new VulkanPhysicalDevice();
     _device = new VulkanDevice();
     _swapchain = new VulkanSwapchain();
+    _renderPass = new VulkanRenderPass();
+    _framebuffer = new VulkanFramebuffer();
 }
 
 VulkanBase::~VulkanBase()
@@ -25,30 +27,44 @@ int VulkanBase::InitVulkan(GLFWwindow *window)
         return true;
     }
 
-    if (!createInstance()) {
+    bool ret = createInstance();
+    if (!ret) {
         return false;
     }
 
-    if (!createSurface(window)) {
+    ret = createSurface(window);
+    if (!ret) {
         return false;
     }
 
-    if (!_physicalDevice->Pick(_instance->Get(), _surface->Get())) {
+    ret = _physicalDevice->Pick(_instance->Get(), _surface->Get());
+    if (!ret) {
         return false;
     }
 
-    if (!_device->Init(_physicalDevice)) {
+    ret = _device->Init(_physicalDevice);
+    if (!ret) {
         return false;
     }
 
     glfwGetFramebufferSize(window, &_width, &_height);
 
-    if (!_swapchain->Init(
-            _physicalDevice->Get(), _device->Get(), _surface->Get(),
-            _physicalDevice->GetGraphicsQueueFamily(),
-            _physicalDevice->GetPresentQueueFamily(), _width, _height)) {
+    ret = _swapchain->Init(
+        _physicalDevice->Get(), _device->Get(), _surface->Get(),
+        _physicalDevice->GetGraphicsQueueFamily(),
+        _physicalDevice->GetPresentQueueFamily(), _width, _height);
+    if (!ret) {
         return false;
     }
+
+    ret = _renderPass->Init(_device->Get(), _swapchain);
+    if (!ret) {
+        return false;
+    }
+
+    ret = _framebuffer->Init(_device->Get(), _renderPass->Get(),
+                             _swapchain->GetImageViews(),
+                             _swapchain->GetExtent());
 
     _initialized = true;
 
@@ -58,6 +74,12 @@ int VulkanBase::InitVulkan(GLFWwindow *window)
 void VulkanBase::Shutdown()
 {
     /* 销毁顺序不能乱*/
+
+    // 帧缓冲区
+    SDelete(_framebuffer);
+
+    // 渲染通道
+    SDelete(_renderPass);
 
     // 交换链
     SDelete(_swapchain);

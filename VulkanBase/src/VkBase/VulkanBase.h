@@ -4,8 +4,10 @@
 #include "MacroHead.h"
 
 #include "VulkanDevice.h"
+#include "VulkanFramebuffer.h"
 #include "VulkanInstance.h"
 #include "VulkanPhysicalDevice.h"
+#include "VulkanRenderPass.h"
 #include "VulkanSurface.h"
 #include "VulkanSwapchain.h"
 
@@ -37,6 +39,10 @@ private:
     VulkanDevice *_device = nullptr;
 
     VulkanSwapchain *_swapchain = nullptr;
+
+    VulkanRenderPass *_renderPass = nullptr;
+
+    VulkanFramebuffer *_framebuffer = nullptr;
 
 private:
     int _width = 0;
