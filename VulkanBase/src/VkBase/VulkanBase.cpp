@@ -14,6 +14,7 @@ VulkanBase::VulkanBase()
     _swapchain = new VulkanSwapchain();
     _renderPass = new VulkanRenderPass();
     _framebuffer = new VulkanFramebuffer();
+    _commandPool = new VulkanCommandPool();
 }
 
 VulkanBase::~VulkanBase()
@@ -65,6 +66,15 @@ int VulkanBase::InitVulkan(GLFWwindow *window)
     ret = _framebuffer->Init(_device->Get(), _renderPass->Get(),
                              _swapchain->GetImageViews(),
                              _swapchain->GetExtent());
+    if (!ret) {
+        return false;
+    }
+
+    ret = _commandPool->Init(_device->Get(),
+                             _physicalDevice->GetGraphicsQueueFamily());
+    if (!ret) {
+        return false;
+    }
 
     _initialized = true;
 
@@ -74,6 +84,9 @@ int VulkanBase::InitVulkan(GLFWwindow *window)
 void VulkanBase::Shutdown()
 {
     /* 销毁顺序不能乱*/
+
+    // 命令池
+    SDelete(_commandPool);
 
     // 帧缓冲区
     SDelete(_framebuffer);

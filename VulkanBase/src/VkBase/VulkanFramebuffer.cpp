@@ -18,7 +18,6 @@ bool VulkanFramebuffer::Init(VkDevice device, VkRenderPass renderPass,
                              const std::vector<VkImageView> &colorImageViews,
                              VkExtent2D extent)
 {
-    // 校验逻辑设备有效性
     if (VK_NULL_HANDLE == device) {
         PSG::PrintError("创建帧缓冲对象：逻辑设备为空!");
         return false;
