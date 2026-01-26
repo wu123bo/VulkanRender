@@ -15,6 +15,7 @@ VulkanBase::VulkanBase()
     _renderPass = new VulkanRenderPass();
     _framebuffer = new VulkanFramebuffer();
     _commandPool = new VulkanCommandPool();
+    _commandBuffer = new VulkanCommandBuffer();
 }
 
 VulkanBase::~VulkanBase()
@@ -76,6 +77,16 @@ int VulkanBase::InitVulkan(GLFWwindow *window)
         return false;
     }
 
+    // 创建 CommandBuffer（每个 Swapchain Image 一个）
+    ret = _commandBuffer->Init(_device->Get(), _commandPool->Get(),
+                               _swapchain->GetImageViewCount());
+
+    // 录制每个 CommandBuffer
+    for (uint32_t i = 0; i < _commandBuffer->GetCount(); ++i) {
+        _commandBuffer->Record(i, _renderPass->Get(), _framebuffer->Get()[i],
+                               _swapchain->GetExtent());
+    }
+
     _initialized = true;
 
     return true;
@@ -84,6 +95,9 @@ int VulkanBase::InitVulkan(GLFWwindow *window)
 void VulkanBase::Shutdown()
 {
     /* 销毁顺序不能乱*/
+
+    // 命令池缓冲区
+    SDelete(_commandBuffer);
 
     // 命令池
     SDelete(_commandPool);

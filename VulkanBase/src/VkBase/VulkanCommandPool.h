@@ -31,6 +31,9 @@ public:
 
     void Destroy();
 
+    /**
+     * @brief 获取命令池
+     */
     VkCommandPool Get() const
     {
         return _commandPool;

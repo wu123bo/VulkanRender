@@ -16,7 +16,7 @@ VulkanCommandPool::~VulkanCommandPool()
 bool VulkanCommandPool::Init(VkDevice device, uint32_t queueFamilyIndex)
 {
     if (VK_NULL_HANDLE == device) {
-        PSG::PrintError("创建帧缓冲对象：逻辑设备为空!");
+        PSG::PrintError("创建命令池对象失败：逻辑设备为空!");
         return false;
     }
 

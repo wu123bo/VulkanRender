@@ -3,6 +3,7 @@
 
 #include "MacroHead.h"
 
+#include "VulkanCommandBuffer.h"
 #include "VulkanCommandPool.h"
 #include "VulkanDevice.h"
 #include "VulkanFramebuffer.h"
@@ -46,6 +47,8 @@ private:
     VulkanFramebuffer *_framebuffer = nullptr;
 
     VulkanCommandPool *_commandPool = nullptr;
+
+    VulkanCommandBuffer *_commandBuffer = nullptr;
 
 private:
     int _width = 0;

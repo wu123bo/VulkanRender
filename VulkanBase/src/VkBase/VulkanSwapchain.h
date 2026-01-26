@@ -69,6 +69,14 @@ public:
         return _imageViews;
     }
 
+    /**
+     * @brief 交换链图像视图数量
+     */
+    uint32_t GetImageViewCount() const
+    {
+        return _imageViews.size();
+    }
+
 private:
     /**
      * @brief 查询物理设备 + Surface 对 Swapchain 的支持情况
