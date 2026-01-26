@@ -29,7 +29,7 @@ bool VulkanPhysicalDevice::Pick(VkInstance instance, VkSurfaceKHR surface)
     int bestScore = -1;
     VkPhysicalDevice bestDevice = VK_NULL_HANDLE;
 
-    // 遍历所有物理设备，选第一个合适的
+    // 遍历所有物理设备，选择一个合适的
     for (const auto &device : devices) {
 
         // 判断当前物理设备是否合适
