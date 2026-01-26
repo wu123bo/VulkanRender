@@ -40,8 +40,10 @@ public:
     }
 
 private:
+    // 逻辑设备
     VkDevice _device = VK_NULL_HANDLE;
 
+    // 命令池
     VkCommandPool _commandPool = VK_NULL_HANDLE;
 };
 

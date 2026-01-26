@@ -9,6 +9,7 @@
 #include "VulkanFramebuffer.h"
 #include "VulkanInstance.h"
 #include "VulkanPhysicalDevice.h"
+#include "VulkanPipelineLayout.h"
 #include "VulkanRenderPass.h"
 #include "VulkanSurface.h"
 #include "VulkanSwapchain.h"
@@ -49,6 +50,8 @@ private:
     VulkanCommandPool *_commandPool = nullptr;
 
     VulkanCommandBuffer *_commandBuffer = nullptr;
+
+    VulkanPipelineLayout *_pipelineLayout = nullptr;
 
 private:
     int _width = 0;

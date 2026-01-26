@@ -29,6 +29,8 @@ set(SRC
     src/VkBase/VulkanRenderPass.cpp
     src/VkBase/VulkanFramebuffer.h
     src/VkBase/VulkanFramebuffer.cpp
+    src/VkBase/VulkanPipelineLayout.h
+    src/VkBase/VulkanPipelineLayout.cpp
     src/VkBase/VulkanPipeline.h
     src/VkBase/VulkanPipeline.cpp
 
@@ -71,7 +73,7 @@ file(GLOB COMSRC ${COMMON}/*.h* ${COMMON}/*.cpp ${COMMON}/*.hpp)
 
 file(GLOB VkCore src/VkBase/VulkanBase.* src/VkBase/VulkanInstance.* src/VkBase/VulkanPhysicalDevice.* src/VkBase/VulkanDevice.*)
 file(GLOB VkWindow src/VkBase/VulkanSurface.* src/VkBase/VulkanSwapchain.*)
-file(GLOB VkRender src/VkBase/VulkanRenderPass.* src/VkBase/VulkanFramebuffer.* src/VkBase/VulkanPipeline.*)
+file(GLOB VkRender src/VkBase/VulkanRenderPass.* src/VkBase/VulkanFramebuffer.* src/VkBase/VulkanPipelineLayout.* src/VkBase/VulkanPipeline.*)
 file(GLOB VkCommand src/VkBase/VulkanCommandPool.* src/VkBase/VulkanCommandBuffer.*)
 file(GLOB VkSync src/VkBase/VulkanSync.*)
 file(GLOB VkUtils src/VkBase/VulkanUtils.*)

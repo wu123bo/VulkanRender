@@ -11,6 +11,7 @@ VulkanCommandBuffer::VulkanCommandBuffer()
 
 VulkanCommandBuffer::~VulkanCommandBuffer()
 {
+    Destroy();
 }
 
 bool VulkanCommandBuffer::Init(VkDevice device, VkCommandPool commandPool,
