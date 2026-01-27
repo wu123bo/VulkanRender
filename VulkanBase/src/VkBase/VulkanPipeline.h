@@ -2,9 +2,18 @@
 #define VULKANPIPELINE_H_
 
 #include "VulkanHead.h"
+#include "VulkanShaderModule.h"
 
 namespace VKB
 {
+
+/**
+ * @brief VulkanPipeline
+ *
+ * 图形管线封装：
+ * - 组合固定功能状态
+ * - 创建 VkPipeline
+ */
 
 class VulkanPipeline
 {
@@ -15,17 +24,16 @@ public:
 
 public:
     /**
-     * @brief 创建基础图形管线
+     * @brief 创建 Graphics Pipeline
      * @param device 逻辑设备
-     * @param renderPass RenderPass
+     * @param renderPass 关联的 RenderPass
      * @param layout PipelineLayout
-     * @param extent Swapchain extent（用于 viewport）
-     * @param vertShader 顶点着色器模块
-     * @param fragShader 片段着色器模块
+     * @param shaders ShaderModules（通常是 vertex + fragment）
+     * @param extent 渲染区域（Swapchain extent）
      */
     bool Init(VkDevice device, VkRenderPass renderPass, VkPipelineLayout layout,
-              VkExtent2D extent, VkShaderModule vertShader,
-              VkShaderModule fragShader);
+              const std::vector<VulkanShaderModule *> &shaders,
+              VkExtent2D extent);
 
     void Destroy();
 

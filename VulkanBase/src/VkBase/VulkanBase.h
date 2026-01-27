@@ -9,10 +9,13 @@
 #include "VulkanFramebuffer.h"
 #include "VulkanInstance.h"
 #include "VulkanPhysicalDevice.h"
+#include "VulkanPipeline.h"
 #include "VulkanPipelineLayout.h"
 #include "VulkanRenderPass.h"
+#include "VulkanShaderModule.h"
 #include "VulkanSurface.h"
 #include "VulkanSwapchain.h"
+#include "VulkanSync.h"
 
 namespace VKB
 {
@@ -53,10 +56,18 @@ private:
 
     VulkanPipelineLayout *_pipelineLayout = nullptr;
 
+    VulkanPipeline *_pipeline = nullptr;
+
+    VulkanSync *_sync = nullptr;
+
+    std::vector<VulkanShaderModule *> _shaderModule;
+
 private:
     int _width = 0;
 
     int _height = 0;
+
+    uint32_t _currentFrame = 0;
 
     bool _initialized = false;
 };

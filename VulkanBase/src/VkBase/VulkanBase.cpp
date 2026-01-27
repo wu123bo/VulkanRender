@@ -17,6 +17,12 @@ VulkanBase::VulkanBase()
     _commandPool = new VulkanCommandPool();
     _commandBuffer = new VulkanCommandBuffer();
     _pipelineLayout = new VulkanPipelineLayout();
+    _pipeline = new VulkanPipeline();
+    _sync = new VulkanSync();
+
+    _shaderModule.resize(2);
+    _shaderModule[0] = new VulkanShaderModule();
+    _shaderModule[1] = new VulkanShaderModule();
 }
 
 VulkanBase::~VulkanBase()
@@ -96,6 +102,18 @@ int VulkanBase::InitVulkan(GLFWwindow *window)
         return false;
     }
 
+    _shaderModule[0]->Init(_device->Get(), "Res\\Shaders\\vert.spv",
+                           VK_SHADER_STAGE_VERTEX_BIT);
+
+    _shaderModule[1]->Init(_device->Get(), "Res\\Shaders\\frag.spv",
+                           VK_SHADER_STAGE_FRAGMENT_BIT);
+
+    ret = _pipeline->Init(_device->Get(), _renderPass->Get(),
+                          _pipelineLayout->Get(), _shaderModule,
+                          _swapchain->GetExtent());
+
+    ret = _sync->Init(_device->Get());
+
     _initialized = true;
 
     return true;
@@ -104,6 +122,18 @@ int VulkanBase::InitVulkan(GLFWwindow *window)
 void VulkanBase::Shutdown()
 {
     /* 销毁顺序不能乱*/
+
+    // 同步
+    SDelete(_sync);
+
+    // 着色器
+    for (size_t i = 0; i < _shaderModule.size(); i++) {
+        SDelete(_shaderModule[i]);
+    }
+    _shaderModule.clear();
+
+    // 图形管线
+    SDelete(_pipeline);
 
     // 管线布局
     SDelete(_pipelineLayout);

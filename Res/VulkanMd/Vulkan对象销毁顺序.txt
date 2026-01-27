@@ -1,0 +1,24 @@
+VkInstance
+  ↓
+VkPhysicalDevice
+  ↓
+VkDevice
+  ↓
+────────────────────────
+↓ Device 子对象（必须先销毁）
+────────────────────────
+VkSwapchainKHR
+VkImageView
+VkFramebuffer
+VkPipeline
+VkPipelineLayout
+VkRenderPass
+VkCommandPool
+VkCommandBuffer（隐式随 Pool）
+VkSemaphore
+VkFence
+────────────────────────
+  ↓
+vkDestroyDevice
+  ↓
+vkDestroyInstance
