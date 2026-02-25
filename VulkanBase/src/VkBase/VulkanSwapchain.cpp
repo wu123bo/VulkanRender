@@ -48,7 +48,7 @@ bool VulkanSwapchain::Init(VkPhysicalDevice physicalDevice, VkDevice device,
     VkExtent2D extent = chooseExtent(support.capabilities, width, height);
 
     // 交换链图像数量
-    uint32_t imageCount = support.capabilities.minImageCount + 1;
+    uint32_t imageCount = support.capabilities.minImageCount;
 
     // 如果交换链图像数量大于支持的最大数量，那么等于支持的最大数量
     if (support.capabilities.maxImageCount > 0

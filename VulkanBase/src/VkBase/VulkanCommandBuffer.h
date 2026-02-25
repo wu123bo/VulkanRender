@@ -36,9 +36,11 @@ public:
      * @param renderPass RenderPass
      * @param framebuffer 对应 Framebuffer
      * @param extent 渲染区域大小
+     * @param extent 渲染管线
      */
     bool Record(uint32_t index, VkRenderPass renderPass,
-                VkFramebuffer framebuffer, VkExtent2D extent);
+                VkFramebuffer framebuffer, VkExtent2D extent,
+                VkPipeline pipeline);
 
     void Destroy();
 

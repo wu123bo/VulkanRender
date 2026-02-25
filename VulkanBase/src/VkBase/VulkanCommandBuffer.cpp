@@ -45,55 +45,34 @@ bool VulkanCommandBuffer::Init(VkDevice device, VkCommandPool commandPool,
 }
 
 bool VulkanCommandBuffer::Record(uint32_t index, VkRenderPass renderPass,
-                                 VkFramebuffer framebuffer, VkExtent2D extent)
+                                 VkFramebuffer framebuffer, VkExtent2D extent,
+                                 VkPipeline pipeline)
 {
-    // 取出对应索引的命令缓冲区
     VkCommandBuffer cmd = _commandBuffers[index];
 
-    // 开始记录命令缓冲区
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    vkBeginCommandBuffer(cmd, &beginInfo);
 
-    VkResult ret = vkBeginCommandBuffer(cmd, &beginInfo);
-    if (ret != VK_SUCCESS) {
-        PSG::PrintError("无法开始命令缓冲区!");
-        return false;
-    }
+    VkRenderPassBeginInfo renderPassInfo{};
+    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    renderPassInfo.renderPass = renderPass;
+    renderPassInfo.framebuffer = framebuffer;
+    renderPassInfo.renderArea.offset = {0, 0};
+    renderPassInfo.renderArea.extent = extent;
 
-    // 设置 RenderPass 清除颜色
-    VkClearValue clearColor{};
-    clearColor.color = {{0.1f, 0.1f, 0.1f, 1.0f}};
+    VkClearValue clearColor = {{{1.0f, 0.0f, 0.0f, 1.0f}}};
+    renderPassInfo.clearValueCount = 1;
+    renderPassInfo.pClearValues = &clearColor;
 
-    // 渲染通道 开始信息
-    VkRenderPassBeginInfo rpInfo{};
-    rpInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    // RenderPass 开始信息
-    rpInfo.renderPass = renderPass;
-    // 当前帧对应的 Framebuffer
-    rpInfo.framebuffer = framebuffer;
-    // 渲染区域左上角
-    rpInfo.renderArea.offset = {0, 0};
-    // 渲染区域大小（Swapchain Extent）
-    rpInfo.renderArea.extent = extent;
-    // 清除值数量（与附件数量匹配）
-    rpInfo.clearValueCount = 1;
-    // 清除颜色
-    rpInfo.pClearValues = &clearColor;
+    vkCmdBeginRenderPass(cmd, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-    // 开始 渲染通道
-    vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
-    // TODO 后续绑定 管线/绘制命令
+    vkCmdDraw(cmd, 3, 1, 0, 0); // gl_VertexIndex 绘制三角形
 
-    // 结束  渲染通道
     vkCmdEndRenderPass(cmd);
-
-    // 结束命令缓冲区记录
-    ret = vkEndCommandBuffer(cmd);
-    if (ret != VK_SUCCESS) {
-        PSG::PrintError("无法记录命令缓冲区!");
-        return false;
-    }
+    vkEndCommandBuffer(cmd);
 
     return true;
 }

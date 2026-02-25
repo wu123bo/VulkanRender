@@ -40,6 +40,8 @@ int main()
     // 5. 主循环（暂时不做渲染）
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
+
+        vulkan.DrawFrame(); // 这里可以调用 DrawFrame() 进行渲染
     }
 
     // 6. 释放 Vulkan（顺序由 VulkanBase 内部保证）

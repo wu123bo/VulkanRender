@@ -37,6 +37,10 @@ bool VulkanPipeline::Init(VkDevice device, VkRenderPass renderPass,
     VkPipelineVertexInputStateCreateInfo vertexInput{};
     vertexInput.sType =
         VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vertexInput.vertexBindingDescriptionCount = 0;
+    vertexInput.pVertexBindingDescriptions = nullptr;
+    vertexInput.vertexAttributeDescriptionCount = 0;
+    vertexInput.pVertexAttributeDescriptions = nullptr;
 
     // =========================
     // Input Assembly
@@ -74,7 +78,7 @@ bool VulkanPipeline::Init(VkDevice device, VkRenderPass renderPass,
     VkPipelineRasterizationStateCreateInfo raster{};
     raster.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
     raster.polygonMode = VK_POLYGON_MODE_FILL;
-    raster.cullMode = VK_CULL_MODE_BACK_BIT;
+    raster.cullMode = VK_CULL_MODE_NONE;
     raster.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     raster.lineWidth = 1.0f;
 
