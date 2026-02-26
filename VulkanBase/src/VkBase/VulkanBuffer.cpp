@@ -1,12 +1,8 @@
 ﻿#include "VulkanBuffer.h"
-#include <cstring>
-#include <iostream>
+#include "PrintMsg.h"
 
 namespace VKB
 {
-VulkanBuffer::VulkanBuffer()
-{
-}
 
 VulkanBuffer::~VulkanBuffer()
 {
@@ -17,98 +13,140 @@ bool VulkanBuffer::Init(VkPhysicalDevice physicalDevice, VkDevice device,
                         VkDeviceSize size, VkBufferUsageFlags usage,
                         VkMemoryPropertyFlags properties)
 {
-    m_physicalDevice = physicalDevice;
-    m_device = device;
-    m_size = size;
+    _physicalDevice = physicalDevice;
+    _device = device;
+    _size = size;
 
-    // 1. 创建 Buffer
+    // =========================
+    // 创建 VkBuffer
+    // =========================
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufferInfo.size = size;
     bufferInfo.usage = usage;
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    if (vkCreateBuffer(device, &bufferInfo, nullptr, &m_buffer) != VK_SUCCESS) {
-        std::cerr << "[VulkanBuffer] Create buffer failed\n";
+    if (vkCreateBuffer(device, &bufferInfo, nullptr, &_buffer) != VK_SUCCESS) {
+        PSG::PrintError("创建 VkBuffer 失败");
         return false;
     }
 
-    // 2. 查询内存需求
-    VkMemoryRequirements memReq{};
-    vkGetBufferMemoryRequirements(device, m_buffer, &memReq);
+    // =========================
+    // 查询内存需求
+    // =========================
+    VkMemoryRequirements memRequirements;
+    vkGetBufferMemoryRequirements(device, _buffer, &memRequirements);
 
-    // 3. 分配内存
+    // =========================
+    // 分配内存
+    // =========================
     VkMemoryAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    allocInfo.allocationSize = memReq.size;
+    allocInfo.allocationSize = memRequirements.size;
     allocInfo.memoryTypeIndex =
-        findMemoryType(memReq.memoryTypeBits, properties);
+        findMemoryType(memRequirements.memoryTypeBits, properties);
 
-    if (vkAllocateMemory(device, &allocInfo, nullptr, &m_memory)
-        != VK_SUCCESS) {
-        std::cerr << "[VulkanBuffer] Allocate memory failed\n";
+    if (vkAllocateMemory(device, &allocInfo, nullptr, &_memory) != VK_SUCCESS) {
+        PSG::PrintError("分配 Buffer 内存失败");
         return false;
     }
 
-    // 4. 绑定内存
-    vkBindBufferMemory(device, m_buffer, m_memory, 0);
+    // =========================
+    // 绑定 Buffer 与内存
+    // =========================
+    vkBindBufferMemory(device, _buffer, _memory, 0);
 
     return true;
 }
 
 void VulkanBuffer::Destroy()
 {
-    if (m_mapped) {
-        vkUnmapMemory(m_device, m_memory);
-        m_mapped = nullptr;
+    if (_buffer != VK_NULL_HANDLE) {
+        vkDestroyBuffer(_device, _buffer, nullptr);
+        _buffer = VK_NULL_HANDLE;
     }
 
-    if (m_buffer) {
-        vkDestroyBuffer(m_device, m_buffer, nullptr);
-        m_buffer = VK_NULL_HANDLE;
+    if (_memory != VK_NULL_HANDLE) {
+        vkFreeMemory(_device, _memory, nullptr);
+        _memory = VK_NULL_HANDLE;
     }
-
-    if (m_memory) {
-        vkFreeMemory(m_device, m_memory, nullptr);
-        m_memory = VK_NULL_HANDLE;
-    }
-
-    m_device = VK_NULL_HANDLE;
-    m_physicalDevice = VK_NULL_HANDLE;
-    m_size = 0;
 }
 
 void *VulkanBuffer::Map()
 {
-    if (!m_mapped) {
-        vkMapMemory(m_device, m_memory, 0, m_size, 0, &m_mapped);
-    }
-    return m_mapped;
+    void *data = nullptr;
+    vkMapMemory(_device, _memory, 0, _size, 0, &data);
+    return data;
 }
 
 void VulkanBuffer::Unmap()
 {
-    if (m_mapped) {
-        vkUnmapMemory(m_device, m_memory);
-        m_mapped = nullptr;
-    }
+    vkUnmapMemory(_device, _memory);
+}
+
+void VulkanBuffer::CopyFrom(VulkanBuffer &src, VkCommandPool commandPool,
+                            VkQueue queue)
+{
+    // =========================
+    // 分配临时 CommandBuffer
+    // =========================
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandPool = commandPool;
+    allocInfo.commandBufferCount = 1;
+
+    VkCommandBuffer commandBuffer;
+    vkAllocateCommandBuffers(_device, &allocInfo, &commandBuffer);
+
+    // =========================
+    // 录制拷贝命令
+    // =========================
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+    VkBufferCopy copyRegion{};
+    copyRegion.size = src.GetSize();
+    vkCmdCopyBuffer(commandBuffer, src.Get(), _buffer, 1, &copyRegion);
+
+    vkEndCommandBuffer(commandBuffer);
+
+    // =========================
+    // 提交并等待完成
+    // =========================
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &commandBuffer;
+
+    vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(queue);
+
+    // =========================
+    // 释放 CommandBuffer
+    // =========================
+    vkFreeCommandBuffers(_device, commandPool, 1, &commandBuffer);
 }
 
 uint32_t VulkanBuffer::findMemoryType(uint32_t typeFilter,
                                       VkMemoryPropertyFlags properties)
 {
-    VkPhysicalDeviceMemoryProperties memProps{};
-    vkGetPhysicalDeviceMemoryProperties(m_physicalDevice, &memProps);
+    VkPhysicalDeviceMemoryProperties memProperties;
+    vkGetPhysicalDeviceMemoryProperties(_physicalDevice, &memProperties);
 
-    for (uint32_t i = 0; i < memProps.memoryTypeCount; ++i) {
+    for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
         if ((typeFilter & (1 << i))
-            && (memProps.memoryTypes[i].propertyFlags & properties)
+            && (memProperties.memoryTypes[i].propertyFlags & properties)
                    == properties) {
             return i;
         }
     }
 
-    throw std::runtime_error("Failed to find suitable memory type");
+    PSG::PrintError("未找到合适的内存类型");
+    return 0;
 }
 
 } // namespace VKB

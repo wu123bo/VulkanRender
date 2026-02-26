@@ -16,6 +16,7 @@
 #include "VulkanSurface.h"
 #include "VulkanSwapchain.h"
 #include "VulkanSync.h"
+#include "VulkanVertexBuffer.h"
 
 namespace VKB
 {
@@ -62,10 +63,21 @@ private:
     VulkanPipeline *_pipeline = nullptr;
     VulkanSync *_sync = nullptr;
 
+    VulkanVertexBuffer *_vertexBuffer = nullptr;
+
 private:
     GLFWwindow *_window = nullptr;
 
     bool _framebufferResized = false;
+
+private:
+    uint32_t _vertexCount = 0;
+
+    const std::vector<VerCor> _vertices = {
+        {{0.0f, -0.5f, 0.0f}, {1.f, 0.f, 0.f}},
+        {{0.5f, 0.5f, 0.0f}, {0.f, 1.f, 0.f}},
+        {{-0.5f, 0.5f, 0.0f}, {0.f, 0.f, 1.f}},
+    };
 
 private:
     int _width = 0;

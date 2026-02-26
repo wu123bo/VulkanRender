@@ -1,68 +1,91 @@
-﻿#include "VulkanHead.h"
+﻿#ifndef VULKANBUFFER_H_
+#define VULKANBUFFER_H_
+
+#include "VulkanHead.h"
 
 namespace VKB
 {
 
 /**
- * @brief VulkanBuffer
+ * @brief Vulkan 通用 Buffer 封装
  *
- * 通用 Buffer 封装：
- * - 管理 VkBuffer / VkDeviceMemory
- * - 支持映射写入
- * - 可作为 Vertex / Index / Uniform / Staging Buffer
+ * 职责：
+ *  - 创建 / 销毁 VkBuffer
+ *  - 分配 / 释放 VkDeviceMemory
+ *  - Map / Unmap
+ *  - Buffer 拷贝（通过 CommandBuffer）
+ *
+ * 不关心：
+ *  - 这是 Vertex / Index / Uniform
+ *  - Shader / Descriptor
  */
 class VulkanBuffer
 {
 public:
-    VulkanBuffer();
-
+    VulkanBuffer() = default;
     ~VulkanBuffer();
 
     /**
-     * @brief 创建 Buffer
+     * @brief 创建 Buffer 并分配内存
+     *
      * @param physicalDevice 物理设备
-     * @param device 逻辑设备
-     * @param size Buffer 大小（字节）
-     * @param usage Buffer 用途（VERTEX / INDEX / UNIFORM / TRANSFER）
-     * @param properties 内存属性
+     * @param device         逻辑设备
+     * @param size           Buffer 大小（字节）
+     * @param usage          Buffer 用途（VERTEX / UNIFORM / TRANSFER 等）
+     * @param properties     内存属性（HOST_VISIBLE / DEVICE_LOCAL）
      */
     bool Init(VkPhysicalDevice physicalDevice, VkDevice device,
               VkDeviceSize size, VkBufferUsageFlags usage,
               VkMemoryPropertyFlags properties);
 
+    /**
+     * @brief 销毁 Buffer 和内存
+     */
     void Destroy();
 
-    /// 映射内存
+    /**
+     * @brief 映射内存（仅 HOST_VISIBLE 可用）
+     */
     void *Map();
 
-    /// 解除映射
+    /**
+     * @brief 解除内存映射
+     */
     void Unmap();
 
-    /// Buffer 句柄
+    /**
+     * @brief 从另一个 Buffer 拷贝数据
+     *
+     * 通常用于：
+     *  - staging buffer → device local buffer
+     */
+    void CopyFrom(VulkanBuffer &src, VkCommandPool commandPool, VkQueue queue);
+
     VkBuffer Get() const
     {
-        return m_buffer;
+        return _buffer;
     }
-
-    /// Buffer 大小
     VkDeviceSize GetSize() const
     {
-        return m_size;
+        return _size;
     }
 
 private:
+    /**
+     * @brief 查找合适的内存类型
+     */
     uint32_t findMemoryType(uint32_t typeFilter,
                             VkMemoryPropertyFlags properties);
 
 private:
-    VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
-    VkDevice m_device = VK_NULL_HANDLE;
+    VkDevice _device = VK_NULL_HANDLE;
+    VkPhysicalDevice _physicalDevice = VK_NULL_HANDLE;
 
-    VkBuffer m_buffer = VK_NULL_HANDLE;
-    VkDeviceMemory m_memory = VK_NULL_HANDLE;
-    VkDeviceSize m_size = 0;
-
-    void *m_mapped = nullptr;
+    VkBuffer _buffer = VK_NULL_HANDLE;
+    VkDeviceMemory _memory = VK_NULL_HANDLE;
+    VkDeviceSize _size = 0;
 };
 
 } // namespace VKB
+
+#endif // VULKANBUFFER_H_

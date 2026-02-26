@@ -49,6 +49,8 @@ set(SRC
 
     src/VkBase/VulkanBuffer.h
     src/VkBase/VulkanBuffer.cpp
+    src/VkBase/VulkanVertexBuffer.h
+    src/VkBase/VulkanVertexBuffer.cpp
 )
 
 add_executable(${ProName} ${SRC})

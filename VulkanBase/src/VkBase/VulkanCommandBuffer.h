@@ -40,7 +40,8 @@ public:
      */
     bool Record(uint32_t index, VkRenderPass renderPass,
                 VkFramebuffer framebuffer, VkExtent2D extent,
-                VkPipeline pipeline);
+                VkPipeline pipeline, VkBuffer vertexBuffer,
+                uint32_t vertexCount);
 
     void Destroy();
 
@@ -61,6 +62,8 @@ public:
     }
 
 private:
+    glm::vec3 _backColor = glm::vec3(0.0f);
+
     // 逻辑设备
     VkDevice _device = VK_NULL_HANDLE;
 

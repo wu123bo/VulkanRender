@@ -46,7 +46,8 @@ bool VulkanCommandBuffer::Init(VkDevice device, VkCommandPool commandPool,
 
 bool VulkanCommandBuffer::Record(uint32_t index, VkRenderPass renderPass,
                                  VkFramebuffer framebuffer, VkExtent2D extent,
-                                 VkPipeline pipeline)
+                                 VkPipeline pipeline, VkBuffer vertexBuffer,
+                                 uint32_t vertexCount)
 {
     VkCommandBuffer cmd = _commandBuffers[index];
 
@@ -61,7 +62,8 @@ bool VulkanCommandBuffer::Record(uint32_t index, VkRenderPass renderPass,
     renderPassInfo.renderArea.offset = {0, 0};
     renderPassInfo.renderArea.extent = extent;
 
-    VkClearValue clearColor = {{{1.0f, 0.0f, 0.0f, 1.0f}}};
+    VkClearValue clearColor = {
+        {{_backColor.x, _backColor.y, _backColor.z, 1.0f}}};
     renderPassInfo.clearValueCount = 1;
     renderPassInfo.pClearValues = &clearColor;
 
@@ -69,7 +71,31 @@ bool VulkanCommandBuffer::Record(uint32_t index, VkRenderPass renderPass,
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
-    vkCmdDraw(cmd, 3, 1, 0, 0); // gl_VertexIndex 绘制三角形
+    // 为此管线指定了视口和剪刀状态为动态 发出绘制命令之前在命令缓冲区中设置它们
+    VkViewport viewport{};
+    viewport.x = 0.0f; // 左上角 X 坐标
+    viewport.y = 0.0f; // 左上角 Y 坐标
+    viewport.width = static_cast<float>(extent.width);
+    viewport.height = static_cast<float>(extent.height);
+    viewport.minDepth = 0.0f; // 深度最小值
+    viewport.maxDepth = 1.0f; // 深度最大值
+
+    vkCmdSetViewport(cmd, 0, 1, &viewport);
+
+    VkRect2D scissor{};
+    scissor.offset = {0, 0}; // 剪裁矩形左上角
+    scissor.extent = extent; // 宽高与交换链一致
+    vkCmdSetScissor(cmd, 0, 1, &scissor);
+
+    // =========================
+    // 绑定顶点缓冲
+    // =========================
+    VkBuffer buffers[] = {vertexBuffer};
+    VkDeviceSize offsets[] = {0};
+
+    vkCmdBindVertexBuffers(cmd, 0, 1, buffers, offsets);
+
+    vkCmdDraw(cmd, vertexCount, 1, 0, 0);
 
     vkCmdEndRenderPass(cmd);
     vkEndCommandBuffer(cmd);

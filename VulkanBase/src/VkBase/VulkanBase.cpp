@@ -23,6 +23,8 @@ VulkanBase::VulkanBase()
     _shaderModule.resize(2);
     _shaderModule[0] = new VulkanShaderModule();
     _shaderModule[1] = new VulkanShaderModule();
+
+    _vertexBuffer = new VulkanVertexBuffer();
 }
 
 VulkanBase::~VulkanBase()
@@ -32,57 +34,86 @@ VulkanBase::~VulkanBase()
 
 int VulkanBase::InitVulkan(GLFWwindow *window)
 {
-    if (_initialized)
-        return true;
+    if (_initialized) {
+        return false;
+    }
 
-    if (!createInstance())
+    if (!createInstance()) {
         return false;
-    if (!createSurface(window))
+    }
+
+    if (!createSurface(window)) {
         return false;
+    }
 
     _window = window;
 
-    if (!_physicalDevice->Pick(_instance->Get(), _surface->Get()))
+    if (!_physicalDevice->Pick(_instance->Get(), _surface->Get())) {
         return false;
-    if (!_device->Init(_physicalDevice))
+    }
+
+    if (!_device->Init(_physicalDevice)) {
         return false;
+    }
 
     glfwGetFramebufferSize(window, &_width, &_height);
 
     if (!_swapchain->Init(
             _physicalDevice->Get(), _device->Get(), _surface->Get(),
             _physicalDevice->GetGraphicsQueueFamily(),
-            _physicalDevice->GetPresentQueueFamily(), _width, _height))
+            _physicalDevice->GetPresentQueueFamily(), _width, _height)) {
         return false;
+    }
 
-    if (!_renderPass->Init(_device->Get(), _swapchain))
+    if (!_renderPass->Init(_device->Get(), _swapchain)) {
         return false;
+    }
+
     if (!_framebuffer->Init(_device->Get(), _renderPass->Get(),
                             _swapchain->GetImageViews(),
-                            _swapchain->GetExtent()))
+                            _swapchain->GetExtent())) {
         return false;
+    }
+
     if (!_commandPool->Init(_device->Get(),
-                            _physicalDevice->GetGraphicsQueueFamily()))
+                            _physicalDevice->GetGraphicsQueueFamily())) {
         return false;
+    }
+
+    // =========================
+    // 创建 VertexBuffer
+    // =========================
+    _vertexCount = static_cast<uint32_t>(_vertices.size());
+    if (!_vertexBuffer->Init(_physicalDevice->Get(), _device->Get(),
+                             _commandPool->Get(), _device->GetGraphicsQueue(),
+                             _vertices.data(),
+                             sizeof(VerCor) * _vertices.size())) {
+        return false;
+    }
+
     if (!_commandBuffer->Init(_device->Get(), _commandPool->Get(),
-                              _swapchain->GetImageViewCount()))
+                              _swapchain->GetImageViewCount())) {
         return false;
+    }
 
-    if (!_pipelineLayout->Init(_device->Get()))
+    if (!_pipelineLayout->Init(_device->Get())) {
         return false;
+    }
 
-    _shaderModule[0]->Init(_device->Get(), "Res\\Shaders\\vert.spv",
+    _shaderModule[0]->Init(_device->Get(), "Res\\Shaders\\vertInVertex.spv",
                            VK_SHADER_STAGE_VERTEX_BIT);
     _shaderModule[1]->Init(_device->Get(), "Res\\Shaders\\frag.spv",
                            VK_SHADER_STAGE_FRAGMENT_BIT);
 
     if (!_pipeline->Init(_device->Get(), _renderPass->Get(),
                          _pipelineLayout->Get(), _shaderModule,
-                         _swapchain->GetExtent()))
+                         _swapchain->GetExtent())) {
         return false;
+    }
 
-    if (!_sync->Init(_device->Get()))
+    if (!_sync->Init(_device->Get())) {
         return false;
+    }
 
     _initialized = true;
     return true;
@@ -115,7 +146,8 @@ int VulkanBase::DrawFrame()
     // 录制 CommandBuffer（直接用 gl_VertexIndex，不绑定 VertexBuffer）
     _commandBuffer->Record(_currentFrame, _renderPass->Get(),
                            _framebuffer->Get()[imageIndex],
-                           _swapchain->GetExtent(), _pipeline->Get());
+                           _swapchain->GetExtent(), _pipeline->Get(),
+                           _vertexBuffer->Get(), _vertexCount);
 
     // 3. 提交 CommandBuffer
     VkSubmitInfo submitInfo{};
@@ -174,6 +206,8 @@ void VulkanBase::Shutdown()
     cleanupSwapchain();
 
     SDelete(_sync);
+
+    SDelete(_vertexBuffer);
 
     SDelete(_pipeline);
     SDelete(_pipelineLayout);

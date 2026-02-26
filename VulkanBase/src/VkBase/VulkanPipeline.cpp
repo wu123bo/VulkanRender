@@ -31,16 +31,21 @@ bool VulkanPipeline::Init(VkDevice device, VkRenderPass renderPass,
         stages.push_back(shader->GetStageInfo());
     }
 
+    // 顶点属性描述
+    auto bindingDesc = VerCor::GetBindingDescription();
+    auto attrDesc = VerCor::GetAttributeDescriptions();
+
     // =========================
-    // Vertex Input（先空，后续扩展）
+    // Vertex Input
     // =========================
     VkPipelineVertexInputStateCreateInfo vertexInput{};
     vertexInput.sType =
         VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vertexInput.vertexBindingDescriptionCount = 0;
-    vertexInput.pVertexBindingDescriptions = nullptr;
-    vertexInput.vertexAttributeDescriptionCount = 0;
-    vertexInput.pVertexAttributeDescriptions = nullptr;
+    vertexInput.vertexBindingDescriptionCount = 1;
+    vertexInput.pVertexBindingDescriptions = &bindingDesc;
+    vertexInput.vertexAttributeDescriptionCount =
+        static_cast<uint32_t>(attrDesc.size());
+    vertexInput.pVertexAttributeDescriptions = attrDesc.data();
 
     // =========================
     // Input Assembly
@@ -50,27 +55,21 @@ bool VulkanPipeline::Init(VkDevice device, VkRenderPass renderPass,
         VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
     inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
-    // =========================
-    // Viewport & Scissor
-    // =========================
-    VkViewport viewport{};
-    viewport.x = 0.0f;
-    viewport.y = 0.0f;
-    viewport.width = static_cast<float>(extent.width);
-    viewport.height = static_cast<float>(extent.height);
-    viewport.minDepth = 0.0f;
-    viewport.maxDepth = 1.0f;
-
-    VkRect2D scissor{};
-    scissor.offset = {0, 0};
-    scissor.extent = extent;
+    // 视口和剪裁状态设置为动态
+    std::vector<VkDynamicState> dynamicStates = {VK_DYNAMIC_STATE_VIEWPORT,
+                                                 VK_DYNAMIC_STATE_SCISSOR};
+    VkPipelineDynamicStateCreateInfo dynamicState{};
+    dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dynamicState.dynamicStateCount =
+        static_cast<uint32_t>(dynamicStates.size());
+    dynamicState.pDynamicStates = dynamicStates.data();
 
     VkPipelineViewportStateCreateInfo viewportState{};
     viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
     viewportState.viewportCount = 1;
-    viewportState.pViewports = &viewport;
+    // viewportState.pViewports = &viewport;
     viewportState.scissorCount = 1;
-    viewportState.pScissors = &scissor;
+    // viewportState.pScissors = &scissor;
 
     // =========================
     // Rasterization
@@ -119,6 +118,7 @@ bool VulkanPipeline::Init(VkDevice device, VkRenderPass renderPass,
     pipelineInfo.layout = layout;
     pipelineInfo.renderPass = renderPass;
     pipelineInfo.subpass = 0;
+    pipelineInfo.pDynamicState = &dynamicState;
 
     VkResult ret = vkCreateGraphicsPipelines(
         device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &_pipeline);
