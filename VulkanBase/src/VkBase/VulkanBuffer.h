@@ -23,6 +23,7 @@ class VulkanBuffer
 {
 public:
     VulkanBuffer() = default;
+
     ~VulkanBuffer();
 
     /**

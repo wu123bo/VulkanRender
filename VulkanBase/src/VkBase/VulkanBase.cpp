@@ -25,6 +25,7 @@ VulkanBase::VulkanBase()
     _shaderModule[1] = new VulkanShaderModule();
 
     _vertexBuffer = new VulkanVertexBuffer();
+    _indexBuffer = new VulkanIndexBuffer();
 }
 
 VulkanBase::~VulkanBase()
@@ -91,6 +92,17 @@ int VulkanBase::InitVulkan(GLFWwindow *window)
         return false;
     }
 
+    // =========================
+    // 创建 IndexBuffer
+    // =========================
+    _indexCount = static_cast<uint32_t>(_indices.size());
+    if (!_indexBuffer->Init(_physicalDevice->Get(), _device->Get(),
+                            _commandPool->Get(), _device->GetGraphicsQueue(),
+                            _indices.data(),
+                            sizeof(uint32_t) * _indices.size())) {
+        return false;
+    }
+
     if (!_commandBuffer->Init(_device->Get(), _commandPool->Get(),
                               _swapchain->GetImageViewCount())) {
         return false;
@@ -143,11 +155,17 @@ int VulkanBase::DrawFrame()
     VkCommandBuffer cb = _commandBuffer->Get(_currentFrame);
     vkResetCommandBuffer(cb, 0);
 
-    // 录制 CommandBuffer（直接用 gl_VertexIndex，不绑定 VertexBuffer）
-    _commandBuffer->Record(_currentFrame, _renderPass->Get(),
-                           _framebuffer->Get()[imageIndex],
-                           _swapchain->GetExtent(), _pipeline->Get(),
-                           _vertexBuffer->Get(), _vertexCount);
+    // 录制 CommandBuffer 绘制
+    //_commandBuffer->Record(_currentFrame, _renderPass->Get(),
+    //                       _framebuffer->Get()[imageIndex],
+    //                       _swapchain->GetExtent(), _pipeline->Get(),
+    //                       _vertexBuffer->Get(), _indexCount);
+
+    _commandBuffer->Record(
+        _currentFrame, _renderPass->Get(), _framebuffer->Get()[imageIndex],
+        _swapchain->GetExtent(), _pipeline->Get(), _vertexBuffer->Get(),
+        _indexBuffer->Get(), _indexCount);
+
 
     // 3. 提交 CommandBuffer
     VkSubmitInfo submitInfo{};
@@ -208,6 +226,7 @@ void VulkanBase::Shutdown()
     SDelete(_sync);
 
     SDelete(_vertexBuffer);
+    SDelete(_indexBuffer);
 
     SDelete(_pipeline);
     SDelete(_pipelineLayout);

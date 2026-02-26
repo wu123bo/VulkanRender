@@ -43,6 +43,11 @@ public:
                 VkPipeline pipeline, VkBuffer vertexBuffer,
                 uint32_t vertexCount);
 
+    bool Record(uint32_t index, VkRenderPass renderPass,
+                VkFramebuffer framebuffer, VkExtent2D extent,
+                VkPipeline pipeline, VkBuffer vertexBuffer,
+                VkBuffer indexBuffer, uint32_t indexCount);
+
     void Destroy();
 
     /**
