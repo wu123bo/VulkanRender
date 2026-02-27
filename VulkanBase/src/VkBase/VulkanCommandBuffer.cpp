@@ -105,8 +105,11 @@ bool VulkanCommandBuffer::Record(uint32_t index, VkRenderPass renderPass,
 
 bool VulkanCommandBuffer::Record(uint32_t index, VkRenderPass renderPass,
                                  VkFramebuffer framebuffer, VkExtent2D extent,
-                                 VkPipeline pipeline, VkBuffer vertexBuffer,
-                                 VkBuffer indexBuffer, uint32_t indexCount)
+                                 VkPipeline pipeline,
+                                 VkPipelineLayout pipelineLayout,
+                                 std::vector<VkDescriptorSet> &descriptorSets,
+                                 VkBuffer vertexBuffer, VkBuffer indexBuffer,
+                                 uint32_t indexCount)
 {
     VkCommandBuffer cmd = _commandBuffers[index];
 
@@ -155,6 +158,14 @@ bool VulkanCommandBuffer::Record(uint32_t index, VkRenderPass renderPass,
 
     // 绑定索引缓冲区
     vkCmdBindIndexBuffer(cmd, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
+    // 使用描述符集
+    // 与顶点缓冲区和索引缓冲区不同，描述符集对于图形管线不是唯一的。
+    // 因此，我们需要指定是否要将描述符集绑定到图形管线或计算管线。
+    // 然后是开始索引 个数 绑定的描述符集合
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            pipelineLayout, 0, 1, &descriptorSets[index], 0,
+                            nullptr);
 
     // 索引绘制
     vkCmdDrawIndexed(cmd, indexCount, 1, 0, 0, 0);

@@ -5,6 +5,9 @@
 
 #include "VulkanCommandBuffer.h"
 #include "VulkanCommandPool.h"
+#include "VulkanDescriptorPool.h"
+#include "VulkanDescriptorSet.h"
+#include "VulkanDescriptorSetLayout.h"
 #include "VulkanDevice.h"
 #include "VulkanFramebuffer.h"
 #include "VulkanIndexBuffer.h"
@@ -17,6 +20,7 @@
 #include "VulkanSurface.h"
 #include "VulkanSwapchain.h"
 #include "VulkanSync.h"
+#include "VulkanUniformBuffer.h"
 #include "VulkanVertexBuffer.h"
 
 namespace VKB
@@ -43,6 +47,9 @@ private:
 
     void recreateSwapchain();
 
+    // 更新uniform缓冲区
+    void updateUniformBuffer(uint32_t currentImage);
+
     void cleanupSwapchain();
 
 private:
@@ -68,6 +75,20 @@ private:
 
     VulkanIndexBuffer *_indexBuffer = nullptr;
 
+    VulkanDescriptorSetLayout *_descriptorSetLayout = nullptr;
+
+    std::vector<VulkanUniformBuffer> _uniformMVPBuffer;
+
+    std::vector<VulkanUniformBuffer> _uniformColorBuffer;
+
+    VulkanDescriptorPool *_descriptorPool = nullptr;
+
+    std::vector<VkDescriptorSet>
+        _descriptorSets; // 存放所有分配的 DescriptorSet
+
+private:
+    MvpMatrix _MVP;
+
 private:
     GLFWwindow *_window = nullptr;
 
@@ -77,15 +98,53 @@ private:
     uint32_t _vertexCount = 0;
 
     const std::vector<VerCor> _vertices = {
-        {{-0.5f, -0.5f, 0.0f}, {1.f, 0.f, 0.f}},
-        {{0.5f, -0.5f, 0.0f}, {0.f, 1.f, 0.f}},
-        {{0.5f, 0.5f, 0.0f}, {0.f, 0.f, 1.f}},
-        {{-0.5f, 0.5f, 0.0f}, {1.f, 1.f, 1.f}},
+        // Front (+Z)
+        {{-0.5f, -0.5f, 0.5f}, {1, 0, 0}},
+        {{0.5f, -0.5f, 0.5f}, {1, 0, 0}},
+        {{0.5f, 0.5f, 0.5f}, {1, 0, 0}},
+        {{-0.5f, 0.5f, 0.5f}, {1, 0, 0}},
+
+        // Back (-Z)
+        {{-0.5f, -0.5f, -0.5f}, {0, 1, 0}},
+        {{0.5f, -0.5f, -0.5f}, {0, 1, 0}},
+        {{0.5f, 0.5f, -0.5f}, {0, 1, 0}},
+        {{-0.5f, 0.5f, -0.5f}, {0, 1, 0}},
+
+        // Left (-X)
+        {{-0.5f, -0.5f, -0.5f}, {0, 0, 1}},
+        {{-0.5f, -0.5f, 0.5f}, {0, 0, 1}},
+        {{-0.5f, 0.5f, 0.5f}, {0, 0, 1}},
+        {{-0.5f, 0.5f, -0.5f}, {0, 0, 1}},
+
+        // Right (+X)
+        {{0.5f, -0.5f, -0.5f}, {1, 1, 0}},
+        {{0.5f, -0.5f, 0.5f}, {1, 1, 0}},
+        {{0.5f, 0.5f, 0.5f}, {1, 1, 0}},
+        {{0.5f, 0.5f, -0.5f}, {1, 1, 0}},
+
+        // Top (+Y)
+        {{-0.5f, 0.5f, -0.5f}, {1, 0, 1}},
+        {{0.5f, 0.5f, -0.5f}, {1, 0, 1}},
+        {{0.5f, 0.5f, 0.5f}, {1, 0, 1}},
+        {{-0.5f, 0.5f, 0.5f}, {1, 0, 1}},
+
+        // Bottom (-Y)
+        {{-0.5f, -0.5f, -0.5f}, {0, 1, 1}},
+        {{0.5f, -0.5f, -0.5f}, {0, 1, 1}},
+        {{0.5f, -0.5f, 0.5f}, {0, 1, 1}},
+        {{-0.5f, -0.5f, 0.5f}, {0, 1, 1}},
     };
 
     uint32_t _indexCount = 0;
 
-    const std::vector<uint32_t> _indices = {0, 1, 2, 2, 3, 0};
+    const std::vector<uint32_t> _indices = {
+        0,  1,  2,  2,  3,  0,  // Front
+        4,  5,  6,  6,  7,  4,  // Back
+        8,  9,  10, 10, 11, 8,  // Left
+        12, 13, 14, 14, 15, 12, // Right
+        16, 17, 18, 18, 19, 16, // Top
+        20, 21, 22, 22, 23, 20  // Bottom
+    };
 
 private:
     int _width = 0;

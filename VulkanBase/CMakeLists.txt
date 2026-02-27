@@ -53,6 +53,15 @@ set(SRC
     src/VkBase/VulkanVertexBuffer.cpp
     src/VkBase/VulkanIndexBuffer.h
     src/VkBase/VulkanIndexBuffer.cpp
+    src/VkBase/VulkanUniformBuffer.h
+    src/VkBase/VulkanUniformBuffer.cpp
+
+    src/VkBase/VulkanDescriptorPool.h
+    src/VkBase/VulkanDescriptorPool.cpp
+    src/VkBase/VulkanDescriptorSet.h
+    src/VkBase/VulkanDescriptorSet.cpp
+    src/VkBase/VulkanDescriptorSetLayout.h
+    src/VkBase/VulkanDescriptorSetLayout.cpp
 )
 
 add_executable(${ProName} ${SRC})

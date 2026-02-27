@@ -2,6 +2,8 @@
 
 #include "PrintMsg.h"
 
+#include <chrono>
+
 namespace VKB
 {
 
@@ -26,6 +28,10 @@ VulkanBase::VulkanBase()
 
     _vertexBuffer = new VulkanVertexBuffer();
     _indexBuffer = new VulkanIndexBuffer();
+
+    _descriptorSetLayout = new VulkanDescriptorSetLayout();
+
+    _descriptorPool = new VulkanDescriptorPool();
 }
 
 VulkanBase::~VulkanBase()
@@ -108,11 +114,74 @@ int VulkanBase::InitVulkan(GLFWwindow *window)
         return false;
     }
 
-    if (!_pipelineLayout->Init(_device->Get())) {
+    // 创建描述符集布局绑定
+    VkDescriptorSetLayoutBinding uboMvpBindind = _descriptorSetLayout->Make(
+        0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
+
+    VkDescriptorSetLayoutBinding uboColorBindind = _descriptorSetLayout->Make(
+        1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
+
+    // 描述符数组
+    std::vector<VkDescriptorSetLayoutBinding> bindings = {uboMvpBindind,
+                                                          uboColorBindind};
+
+    // 描述符集布局创建信息
+    _descriptorSetLayout->Init(_device->Get(), bindings);
+    std::vector<VkDescriptorSetLayout> setLayouts;
+    setLayouts.push_back(_descriptorSetLayout->Get());
+    if (!_pipelineLayout->Init(_device->Get(), setLayouts)) {
         return false;
     }
 
-    _shaderModule[0]->Init(_device->Get(), "Res\\Shaders\\vertInVertex.spv",
+    // =========================
+    // 创建 UniformBuffer
+    // =========================
+    _uniformMVPBuffer.resize(MAX_FRAMES_IN_FLIGHT);
+    _uniformColorBuffer.resize(MAX_FRAMES_IN_FLIGHT);
+    for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        _uniformMVPBuffer[i].Init(_physicalDevice->Get(), _device->Get(),
+                                  sizeof(MvpMatrix));
+        _uniformColorBuffer[i].Init(_physicalDevice->Get(), _device->Get(),
+                                    sizeof(AlphaColor));
+    }
+
+    // 描述符池创建信息
+    std::vector<VkDescriptorPoolSize> poolSizes(2);
+    poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    // 两个 UBO（MVP + Color） 所以 * 2
+    poolSizes[0].descriptorCount =
+        static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT * 2);
+    poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes[1].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+
+    if (!_descriptorPool->Init(_device->Get(), MAX_FRAMES_IN_FLIGHT,
+                               poolSizes)) {
+        return false;
+    }
+
+    // 分配描述符集合信息
+    std::vector<VkDescriptorSetLayout> layouts(
+        static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT),
+        _descriptorSetLayout->Get());
+
+    if (!_descriptorPool->AllocateDescriptorSets(layouts, _descriptorSets)) {
+        return false;
+    }
+
+    // 配置描述符类
+    VulkanDescriptorSet descriptorSet;
+    for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        // 配置描述符
+        descriptorSet.Init(_device->Get(), _descriptorSets[i]);
+        descriptorSet.UpdateBuffer(0, _uniformMVPBuffer[i].Get(),
+                                   _uniformMVPBuffer[i].GetSize());
+
+        descriptorSet.Init(_device->Get(), _descriptorSets[i]);
+        descriptorSet.UpdateBuffer(1, _uniformColorBuffer[i].Get(),
+                                   _uniformColorBuffer[i].GetSize());
+    }
+
+    _shaderModule[0]->Init(_device->Get(), "Res\\Shaders\\VerMVPColor.spv",
                            VK_SHADER_STAGE_VERTEX_BIT);
     _shaderModule[1]->Init(_device->Get(), "Res\\Shaders\\frag.spv",
                            VK_SHADER_STAGE_FRAGMENT_BIT);
@@ -149,6 +218,8 @@ int VulkanBase::DrawFrame()
         return 0;
     }
 
+    updateUniformBuffer(_currentFrame);
+
     vkResetFences(_device->Get(), 1, &inFlightFence);
 
     // 4. reset + record 当前帧的 CommandBuffer
@@ -156,16 +227,11 @@ int VulkanBase::DrawFrame()
     vkResetCommandBuffer(cb, 0);
 
     // 录制 CommandBuffer 绘制
-    //_commandBuffer->Record(_currentFrame, _renderPass->Get(),
-    //                       _framebuffer->Get()[imageIndex],
-    //                       _swapchain->GetExtent(), _pipeline->Get(),
-    //                       _vertexBuffer->Get(), _indexCount);
-
     _commandBuffer->Record(
         _currentFrame, _renderPass->Get(), _framebuffer->Get()[imageIndex],
-        _swapchain->GetExtent(), _pipeline->Get(), _vertexBuffer->Get(),
-        _indexBuffer->Get(), _indexCount);
-
+        _swapchain->GetExtent(), _pipeline->Get(), _pipelineLayout->Get(),
+        _descriptorSets, _vertexBuffer->Get(), _indexBuffer->Get(),
+        _indexCount);
 
     // 3. 提交 CommandBuffer
     VkSubmitInfo submitInfo{};
@@ -228,6 +294,13 @@ void VulkanBase::Shutdown()
     SDelete(_vertexBuffer);
     SDelete(_indexBuffer);
 
+    _uniformMVPBuffer.clear();
+    _uniformColorBuffer.clear();
+
+    SDelete(_descriptorSetLayout);
+    SDelete(_descriptorPool);
+    _descriptorSets.clear();
+
     SDelete(_pipeline);
     SDelete(_pipelineLayout);
     SDelete(_renderPass);
@@ -283,6 +356,58 @@ void VulkanBase::recreateSwapchain()
     _commandBuffer = new VulkanCommandBuffer();
     _commandBuffer->Init(_device->Get(), _commandPool->Get(),
                          _swapchain->GetImageViewCount());
+}
+
+void VulkanBase::updateUniformBuffer(uint32_t currentImage)
+{
+
+    // 计算自渲染开始以来以秒为单位的时间
+    static auto startTime = std::chrono::high_resolution_clock::now();
+
+    // 当前时间
+    auto currentTime = std::chrono::high_resolution_clock::now();
+    float time = std::chrono::duration<float, std::chrono::seconds::period>(
+                     currentTime - startTime)
+                     .count();
+
+    /**************更新 MVP ubo***************************/
+
+    MvpMatrix ubo{};
+    // 模型矩阵沿Z轴每秒旋转90°
+    ubo.model = glm::rotate(MAT_4(1.0f), time * glm::radians(90.0f),
+                            PTF_3D(0.0f, 0.0f, 1.0f));
+
+    // ubo.model = MAT_4(1.0f);
+
+    // 视图矩阵
+    ubo.view = glm::lookAt(PTF_3D(2.0f, 2.0f, 2.0f), PTF_3D(0.0f),
+                           PTF_3D(0.0f, 0.0f, 1.0f));
+
+    const auto &extent = _swapchain->GetExtent();
+
+    // 投影矩阵
+    float sceen = (float)extent.width / (float)extent.height;
+    ubo.proj = glm::perspective(glm::radians(45.0f), sceen, 0.1f, 10.0f);
+
+    // glm裁剪坐标Y是反的
+    ubo.proj[1][1] *= -1;
+
+    // 拷贝数据到缓冲区内存
+    _uniformMVPBuffer[currentImage].Update(&ubo, sizeof(MvpMatrix));
+
+    /**************更新 颜色透明度 ubo***************************/
+    static bool firstCall = true;
+    if (firstCall) {
+        std::srand(
+            static_cast<unsigned int>(std::time(nullptr))); // 只初始化一次
+        firstCall = false;
+    }
+
+    AlphaColor colorUbo{};
+    colorUbo.color = glm::vec3(1.0f, 1.0f, 1.0f);
+    colorUbo.alpha = static_cast<float>(std::rand()) / RAND_MAX;
+
+    _uniformColorBuffer[currentImage].Update(&colorUbo, sizeof(AlphaColor));
 }
 
 void VulkanBase::cleanupSwapchain()
