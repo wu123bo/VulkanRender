@@ -1,6 +1,7 @@
 ﻿#ifndef VULKANRENDERPASS_H_
 #define VULKANRENDERPASS_H_
 
+#include "VulkanAttachmentDesc.h"
 #include "VulkanSwapchain.h"
 
 namespace VKB
@@ -29,7 +30,7 @@ public:
      * @param device 逻辑设备
      * @param swapchain Swapchain 用于获取图像
      */
-    bool Init(VkDevice device, const VulkanSwapchain *swapchain);
+    bool Init(VkDevice device, VulkanAttachmentDesc &attachmentDesc);
 
     /**
      * @brief 销毁 RenderPass 和 Framebuffer

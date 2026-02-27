@@ -32,6 +32,8 @@ VulkanBase::VulkanBase()
     _descriptorSetLayout = new VulkanDescriptorSetLayout();
 
     _descriptorPool = new VulkanDescriptorPool();
+
+    _depthBuffer = new VulkanDepthBuffer();
 }
 
 VulkanBase::~VulkanBase()
@@ -65,6 +67,7 @@ int VulkanBase::InitVulkan(GLFWwindow *window)
 
     glfwGetFramebufferSize(window, &_width, &_height);
 
+    // 创建交换链之前，必须先创建 Surface 和选择物理设备，因为交换链的创建
     if (!_swapchain->Init(
             _physicalDevice->Get(), _device->Get(), _surface->Get(),
             _physicalDevice->GetGraphicsQueueFamily(),
@@ -72,16 +75,52 @@ int VulkanBase::InitVulkan(GLFWwindow *window)
         return false;
     }
 
-    if (!_renderPass->Init(_device->Get(), _swapchain)) {
+    // -------------------------
+    // 颜色附件
+    // -------------------------
+    _attachmentDesc.AddAttachment(
+        _swapchain->GetFormat(),         // Swapchain 格式
+        VK_SAMPLE_COUNT_1_BIT,           // MSAA
+        VK_ATTACHMENT_LOAD_OP_CLEAR,     // 渲染开始清除
+        VK_ATTACHMENT_STORE_OP_STORE,    // 渲染结束保存到交换链
+        VK_IMAGE_LAYOUT_UNDEFINED,       // 初始布局
+        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, // 最终布局
+        AttachmentType::COLOR            // 附件类型
+    );
+
+    // -------------------------
+    // 深度附件
+    // -------------------------
+    _attachmentDesc.AddAttachment(
+        FindDepthFormat(_physicalDevice->Get()),          // 深度格式
+        VK_SAMPLE_COUNT_1_BIT,                            // MSAA
+        VK_ATTACHMENT_LOAD_OP_CLEAR,                      // 清除深度
+        VK_ATTACHMENT_STORE_OP_DONT_CARE,                 // 不需要保存深度
+        VK_IMAGE_LAYOUT_UNDEFINED,                        // 初始布局
+        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, // 最终布局
+        AttachmentType::DEPTH);
+
+    // 创建必须在 Framebuffer 之前，因为 Framebuffer 需要RenderPass 的句柄
+    if (!_renderPass->Init(_device->Get(), _attachmentDesc)) {
         return false;
     }
 
-    if (!_framebuffer->Init(_device->Get(), _renderPass->Get(),
-                            _swapchain->GetImageViews(),
+    // 深度缓冲的创建必须在 Framebuffer 之前，因为 Framebuffer 需要它的
+    // ImageView
+    if (!_depthBuffer->Init(_physicalDevice->Get(), _device->Get(),
                             _swapchain->GetExtent())) {
         return false;
     }
 
+    // 然后在创建 Framebuffer 时，把深度缓冲 ImageView 也加入 attachments
+    if (!_framebuffer->Init(
+            _device->Get(), _renderPass->Get(), _swapchain->GetImageViews(),
+            _depthBuffer->GetImageView(), _swapchain->GetExtent())) {
+        return false;
+    }
+
+    // CommandPool 的创建必须在 Framebuffer 之后，因为 CommandBuffer
+    // 需要知道交换链图像数量
     if (!_commandPool->Init(_device->Get(),
                             _physicalDevice->GetGraphicsQueueFamily())) {
         return false;
@@ -321,6 +360,8 @@ void VulkanBase::Shutdown()
     SDelete(_descriptorPool);
     _descriptorSets.clear();
 
+    SDelete(_depthBuffer);
+
     SDelete(_pipeline);
     SDelete(_pipelineLayout);
     SDelete(_renderPass);
@@ -367,10 +408,16 @@ void VulkanBase::recreateSwapchain()
                      _physicalDevice->GetGraphicsQueueFamily(),
                      _physicalDevice->GetPresentQueueFamily(), _width, _height);
 
+    // 重新创建 depthBuffer
+    _depthBuffer = new VulkanDepthBuffer();
+    _depthBuffer->Init(_physicalDevice->Get(), _device->Get(),
+                       _swapchain->GetExtent());
+
     // 重新创建 Framebuffer
     _framebuffer = new VulkanFramebuffer();
     _framebuffer->Init(_device->Get(), _renderPass->Get(),
-                       _swapchain->GetImageViews(), _swapchain->GetExtent());
+                       _swapchain->GetImageViews(),
+                       _depthBuffer->GetImageView(), _swapchain->GetExtent());
 
     // 重新创建 CommandBuffer
     _commandBuffer = new VulkanCommandBuffer();
@@ -447,6 +494,8 @@ void VulkanBase::updateUniformBuffer(uint32_t currentImage)
 void VulkanBase::cleanupSwapchain()
 {
     // 销毁旧资源
+    SDelete(_depthBuffer);
+
     SDelete(_framebuffer);
     SDelete(_commandBuffer);
     SDelete(_swapchain);

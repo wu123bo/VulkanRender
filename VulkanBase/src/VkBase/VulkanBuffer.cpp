@@ -1,6 +1,8 @@
 ﻿#include "VulkanBuffer.h"
 #include "PrintMsg.h"
 
+#include "VulkanUtils.h"
+
 namespace VKB
 {
 
@@ -43,8 +45,8 @@ bool VulkanBuffer::Init(VkPhysicalDevice physicalDevice, VkDevice device,
     VkMemoryAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex =
-        findMemoryType(memRequirements.memoryTypeBits, properties);
+    allocInfo.memoryTypeIndex = FindMemoryType(
+        _physicalDevice, memRequirements.memoryTypeBits, properties);
 
     if (vkAllocateMemory(device, &allocInfo, nullptr, &_memory) != VK_SUCCESS) {
         PSG::PrintError("分配 Buffer 内存失败");
@@ -129,24 +131,6 @@ void VulkanBuffer::CopyFrom(VulkanBuffer &src, VkCommandPool commandPool,
     // 释放 CommandBuffer
     // =========================
     vkFreeCommandBuffers(_device, commandPool, 1, &commandBuffer);
-}
-
-uint32_t VulkanBuffer::findMemoryType(uint32_t typeFilter,
-                                      VkMemoryPropertyFlags properties)
-{
-    VkPhysicalDeviceMemoryProperties memProperties;
-    vkGetPhysicalDeviceMemoryProperties(_physicalDevice, &memProperties);
-
-    for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
-        if ((typeFilter & (1 << i))
-            && (memProperties.memoryTypes[i].propertyFlags & properties)
-                   == properties) {
-            return i;
-        }
-    }
-
-    PSG::PrintError("未找到合适的内存类型");
-    return 0;
 }
 
 } // namespace VKB

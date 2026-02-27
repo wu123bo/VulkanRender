@@ -62,10 +62,13 @@ bool VulkanCommandBuffer::Record(uint32_t index, VkRenderPass renderPass,
     renderPassInfo.renderArea.offset = {0, 0};
     renderPassInfo.renderArea.extent = extent;
 
-    VkClearValue clearColor = {
-        {{_backColor.x, _backColor.y, _backColor.z, 1.0f}}};
-    renderPassInfo.clearValueCount = 1;
-    renderPassInfo.pClearValues = &clearColor;
+    // 多个具有 VK_ATTACHMENT_LOAD_OP_CLEAR 的附件
+    // 参数定义了用于 VK_ATTACHMENT_LOAD_OP_CLEAR 的清除值
+    std::vector<VkClearValue> clearValues(2);
+    clearValues[0].color = {{_backColor.x, _backColor.y, _backColor.z, 1.0f}};
+    clearValues[1].depthStencil = {1.0f, 0};
+    renderPassInfo.clearValueCount = clearValues.size();
+    renderPassInfo.pClearValues = clearValues.data();
 
     vkCmdBeginRenderPass(cmd, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
@@ -124,10 +127,13 @@ bool VulkanCommandBuffer::Record(uint32_t index, VkRenderPass renderPass,
     renderPassInfo.renderArea.offset = {0, 0};
     renderPassInfo.renderArea.extent = extent;
 
-    VkClearValue clearColor = {
-        {{_backColor.x, _backColor.y, _backColor.z, 1.0f}}};
-    renderPassInfo.clearValueCount = 1;
-    renderPassInfo.pClearValues = &clearColor;
+    // 多个具有 VK_ATTACHMENT_LOAD_OP_CLEAR 的附件
+    // 参数定义了用于 VK_ATTACHMENT_LOAD_OP_CLEAR 的清除值
+    std::vector<VkClearValue> clearValues(2);
+    clearValues[0].color = {{_backColor.x, _backColor.y, _backColor.z, 1.0f}};
+    clearValues[1].depthStencil = {1.0f, 0};
+    renderPassInfo.clearValueCount = clearValues.size();
+    renderPassInfo.pClearValues = clearValues.data();
 
     vkCmdBeginRenderPass(cmd, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
@@ -202,10 +208,13 @@ bool VulkanCommandBuffer::Record(uint32_t index, VkRenderPass renderPass,
     renderPassInfo.renderArea.offset = {0, 0};
     renderPassInfo.renderArea.extent = extent;
 
-    VkClearValue clearColor{};
-    clearColor.color = {{_backColor.x, _backColor.y, _backColor.z, 1.0f}};
-    renderPassInfo.clearValueCount = 1;
-    renderPassInfo.pClearValues = &clearColor;
+    // 多个具有 VK_ATTACHMENT_LOAD_OP_CLEAR 的附件
+    // 参数定义了用于 VK_ATTACHMENT_LOAD_OP_CLEAR 的清除值
+    std::vector<VkClearValue> clearValues(2);
+    clearValues[0].color = {{_backColor.x, _backColor.y, _backColor.z, 1.0f}};
+    clearValues[1].depthStencil = {1.0f, 0};
+    renderPassInfo.clearValueCount = clearValues.size();
+    renderPassInfo.pClearValues = clearValues.data();
 
     vkCmdBeginRenderPass(cmd, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 

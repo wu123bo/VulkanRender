@@ -89,6 +89,25 @@ bool VulkanPipeline::Init(VkDevice device, VkRenderPass renderPass,
         VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
+    // 深度测试和模板测试
+    VkPipelineDepthStencilStateCreateInfo depthStencil{};
+    depthStencil.sType =
+        VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    // 是否应将新片段的深度与深度缓冲区进行比较
+    depthStencil.depthTestEnable = VK_TRUE;
+    // 是否应将通过深度测试的片段的新深度实际写入深度缓冲区
+    depthStencil.depthWriteEnable = VK_TRUE;
+    // 指定执行的比较以保留或丢弃片段
+    depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+    // 用于可选的深度边界测试
+    depthStencil.depthBoundsTestEnable = VK_FALSE;
+    depthStencil.minDepthBounds = 0.0f; // 可选
+    depthStencil.maxDepthBounds = 1.0f; // 可选
+    // 模板缓冲区操作
+    depthStencil.stencilTestEnable = VK_FALSE;
+    depthStencil.front = {}; // 可选
+    depthStencil.back = {};  // 可选
+
     // =========================
     // Color Blend
     // =========================
@@ -114,6 +133,10 @@ bool VulkanPipeline::Init(VkDevice device, VkRenderPass renderPass,
     pipelineInfo.pViewportState = &viewportState;
     pipelineInfo.pRasterizationState = &raster;
     pipelineInfo.pMultisampleState = &multisample;
+
+    // 深度和模板测试
+    pipelineInfo.pDepthStencilState = &depthStencil;
+
     pipelineInfo.pColorBlendState = &colorBlend;
     pipelineInfo.layout = layout;
     pipelineInfo.renderPass = renderPass;

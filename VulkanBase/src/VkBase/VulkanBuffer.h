@@ -72,13 +72,6 @@ public:
     }
 
 private:
-    /**
-     * @brief 查找合适的内存类型
-     */
-    uint32_t findMemoryType(uint32_t typeFilter,
-                            VkMemoryPropertyFlags properties);
-
-private:
     VkDevice _device = VK_NULL_HANDLE;
     VkPhysicalDevice _physicalDevice = VK_NULL_HANDLE;
 

@@ -3,8 +3,10 @@
 
 #include "MacroHead.h"
 
+#include "VulkanAttachmentDesc.h"
 #include "VulkanCommandBuffer.h"
 #include "VulkanCommandPool.h"
+#include "VulkanDepthBuffer.h"
 #include "VulkanDescriptorPool.h"
 #include "VulkanDescriptorSet.h"
 #include "VulkanDescriptorSetLayout.h"
@@ -21,6 +23,7 @@
 #include "VulkanSwapchain.h"
 #include "VulkanSync.h"
 #include "VulkanUniformBuffer.h"
+#include "VulkanUtils.h"
 #include "VulkanVertexBuffer.h"
 
 namespace VKB
@@ -85,6 +88,10 @@ private:
 
     std::vector<VkDescriptorSet>
         _descriptorSets; // 存放所有分配的 DescriptorSet
+
+    VulkanDepthBuffer *_depthBuffer = nullptr;
+
+    VulkanAttachmentDesc _attachmentDesc; // 附件描述
 
 private:
     MvpMatrix _MVP;
@@ -156,7 +163,6 @@ private:
 
 private:
     PTF_3D _cameraPos = PTF_3D(0.0f, 5.0f, 0.0f);
-
 };
 } // namespace VKB
 

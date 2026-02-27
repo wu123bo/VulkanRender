@@ -1,6 +1,7 @@
 ﻿#include "VulkanRenderPass.h"
 
 #include "PrintMsg.h"
+#include "VulkanUtils.h"
 
 namespace VKB
 {
@@ -14,42 +15,60 @@ VulkanRenderPass::~VulkanRenderPass()
     Destroy();
 }
 
-bool VulkanRenderPass::Init(VkDevice device, const VulkanSwapchain *swapchain)
+bool VulkanRenderPass::Init(VkDevice device,
+                            VulkanAttachmentDesc &attachmentDesc)
 {
     if (VK_NULL_HANDLE == device) {
         PSG::PrintError("创建渲染通道失败：逻辑设备为空!");
         return false;
     }
 
-    // 定义颜色附件（Color Attachment）
-    VkAttachmentDescription colorAttachment = createAttachment(
-        swapchain->GetFormat(), VK_SAMPLE_COUNT_1_BIT,
-        VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE,
-        VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE,
-        VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+    // -------------------------
+    // 子通道描述
+    // -------------------------
+    auto colorRefs = attachmentDesc.GetAttachment(AttachmentType::COLOR);
+    auto depthRefs = attachmentDesc.GetAttachment(AttachmentType::DEPTH);
 
-    // 附件引用（Attachment Reference）
-    VkAttachmentReference colorAttachmentRef =
-        makeAttachmentRef(0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    if (nullptr == colorRefs) {
+        PSG::PrintError("创建渲染通道失败!");
+        return false;
+    }
 
     // 子通道（Subpass）
     VkSubpassDescription subpass{};
-
-    // 这是一个图形渲染子通道
     subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    // 使用一个颜色附件
     subpass.colorAttachmentCount = 1;
-    subpass.pColorAttachments = &colorAttachmentRef;
+    subpass.pColorAttachments = &colorRefs->ref;
+    subpass.pDepthStencilAttachment =
+        depthRefs == nullptr ? nullptr : &depthRefs->ref;
+
+    // ---------- 子通道依赖（同步） ----------
+    VkSubpassDependency dependency{};
+    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependency.dstSubpass = 0;
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+                              | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+                              | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependency.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+                               | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+                               | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+    // ---------- 附件列表 ----------
+    auto attachments = attachmentDesc.GetAllAttachments();
 
     // RenderPass 创建信息
     VkRenderPassCreateInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     // 附件数量
-    renderPassInfo.attachmentCount = 1;
-    renderPassInfo.pAttachments = &colorAttachment;
+    renderPassInfo.attachmentCount = attachments.size();
+    renderPassInfo.pAttachments = attachments.data();
     // 子通道数量
     renderPassInfo.subpassCount = 1;
     renderPassInfo.pSubpasses = &subpass;
+    renderPassInfo.dependencyCount = 1;
+    renderPassInfo.pDependencies = &dependency;
 
     // 创建 RenderPass
     VkResult ret =

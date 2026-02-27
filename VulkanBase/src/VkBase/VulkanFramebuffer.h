@@ -26,6 +26,7 @@ public:
      */
     bool Init(VkDevice device, VkRenderPass renderPass,
               const std::vector<VkImageView> &colorImageViews,
+              const VkImageView &depthImageView,
               VkExtent2D extent);
 
     void Destroy();

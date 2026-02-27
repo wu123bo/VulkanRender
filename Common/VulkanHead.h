@@ -46,6 +46,25 @@ struct SupportDetails
     std::vector<VkPresentModeKHR> presentModes;
 };
 
+// 附件类型
+enum class AttachmentType
+{
+    COLOR = 0,
+    DEPTH,
+    STENCIL,
+    // 可以以后扩展 HDR、GBuffer 等类型
+};
+
+// Vulkan 附件描述结构体
+struct AttachmentDesc
+{
+    // 附件描述
+    VkAttachmentDescription desc;
+
+    // 附件引用
+    VkAttachmentReference ref;
+};
+
 struct UniformVec
 {
     // uniform 缓冲区
@@ -58,6 +77,7 @@ struct UniformVec
     std::vector<void *> buffersMapped;
 };
 
+// 小型 Push Constant 结构体 （通常不超过 128 字节）
 struct PushObject
 {
     alignas(16) MAT_4 model;

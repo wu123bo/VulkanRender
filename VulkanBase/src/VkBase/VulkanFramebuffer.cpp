@@ -16,6 +16,7 @@ VulkanFramebuffer::~VulkanFramebuffer()
 
 bool VulkanFramebuffer::Init(VkDevice device, VkRenderPass renderPass,
                              const std::vector<VkImageView> &colorImageViews,
+                             const VkImageView &depthImageView,
                              VkExtent2D extent)
 {
     if (VK_NULL_HANDLE == device) {
@@ -26,15 +27,16 @@ bool VulkanFramebuffer::Init(VkDevice device, VkRenderPass renderPass,
     _framebuffers.resize(colorImageViews.size());
     for (size_t i = 0; i < colorImageViews.size(); i++) {
 
-        // 颜色资源视图
-        VkImageView attachments[] = {colorImageViews[i]};
+        // 颜色资源视图 0 colorImageViews  1  depthImageView
+        std::vector<VkImageView> attachments{colorImageViews[i],
+                                             depthImageView};
 
         // 创建帧缓冲区信息
         VkFramebufferCreateInfo fbInfo{};
         fbInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         fbInfo.renderPass = renderPass;
-        fbInfo.attachmentCount = 1;
-        fbInfo.pAttachments = attachments;
+        fbInfo.attachmentCount = attachments.size();
+        fbInfo.pAttachments = attachments.data();
         fbInfo.width = extent.width;
         fbInfo.height = extent.height;
         fbInfo.layers = 1;
