@@ -50,6 +50,13 @@ public:
                 VkBuffer vertexBuffer, VkBuffer indexBuffer,
                 uint32_t indexCount);
 
+    bool Record(uint32_t index, VkRenderPass renderPass,
+                VkFramebuffer framebuffer, VkExtent2D extent,
+                VkPipeline pipeline, VkPipelineLayout pipelineLayout,
+                std::vector<VkDescriptorSet> &descriptorSets,
+                VkBuffer vertexBuffer, VkBuffer indexBuffer,
+                uint32_t indexCount, std::vector<PushObject> &pushObjects);
+
     void Destroy();
 
     /**

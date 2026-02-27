@@ -129,7 +129,14 @@ int VulkanBase::InitVulkan(GLFWwindow *window)
     _descriptorSetLayout->Init(_device->Get(), bindings);
     std::vector<VkDescriptorSetLayout> setLayouts;
     setLayouts.push_back(_descriptorSetLayout->Get());
-    if (!_pipelineLayout->Init(_device->Get(), setLayouts)) {
+
+    VkPushConstantRange pushRange{};
+    pushRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    pushRange.offset = 0;
+    pushRange.size = sizeof(PushObject);
+    std::vector<VkPushConstantRange> pushObjects;
+    pushObjects.push_back(pushRange);
+    if (!_pipelineLayout->Init(_device->Get(), setLayouts, pushObjects)) {
         return false;
     }
 
@@ -181,7 +188,7 @@ int VulkanBase::InitVulkan(GLFWwindow *window)
                                    _uniformColorBuffer[i].GetSize());
     }
 
-    _shaderModule[0]->Init(_device->Get(), "Res\\Shaders\\VerMVPColor.spv",
+    _shaderModule[0]->Init(_device->Get(), "Res\\Shaders\\VerMVPColorPush.spv",
                            VK_SHADER_STAGE_VERTEX_BIT);
     _shaderModule[1]->Init(_device->Get(), "Res\\Shaders\\frag.spv",
                            VK_SHADER_STAGE_FRAGMENT_BIT);
@@ -226,12 +233,25 @@ int VulkanBase::DrawFrame()
     VkCommandBuffer cb = _commandBuffer->Get(_currentFrame);
     vkResetCommandBuffer(cb, 0);
 
+    std::vector<PushObject> pushObjects(5);
+    pushObjects[0].model = MAT_4(1.0f);
+    pushObjects[0].color = PTF_3D(1.0f);
+
+    pushObjects[1].model = glm::translate(MAT_4(1.0f), PTF_3D(2.0f, 0, 0));
+    pushObjects[1].color = PTF_3D(1.0f, 0.0, 0.0f);
+    pushObjects[2].model = glm::translate(MAT_4(1.0f), PTF_3D(-2.0f, 0, 0));
+    pushObjects[2].color = PTF_3D(0.0f, 1.0, 0.0f);
+    pushObjects[3].model = glm::translate(MAT_4(1.0f), PTF_3D(0, 2.0f, 0));
+    pushObjects[3].color = PTF_3D(0.0f, 0.0, 1.0f);
+    pushObjects[4].model = glm::translate(MAT_4(1.0f), PTF_3D(0, -2.0f, 0));
+    pushObjects[4].color = PTF_3D(1.0f, 0.0, 1.0f);
+
     // 录制 CommandBuffer 绘制
     _commandBuffer->Record(
         _currentFrame, _renderPass->Get(), _framebuffer->Get()[imageIndex],
         _swapchain->GetExtent(), _pipeline->Get(), _pipelineLayout->Get(),
-        _descriptorSets, _vertexBuffer->Get(), _indexBuffer->Get(),
-        _indexCount);
+        _descriptorSets, _vertexBuffer->Get(), _indexBuffer->Get(), _indexCount,
+        pushObjects);
 
     // 3. 提交 CommandBuffer
     VkSubmitInfo submitInfo{};
@@ -379,9 +399,23 @@ void VulkanBase::updateUniformBuffer(uint32_t currentImage)
 
     // ubo.model = MAT_4(1.0f);
 
+    float radius = 5.0f;               // 摄像机到原点距离
+    float speed = glm::radians(45.0f); // 每秒旋转角度
+
+    float angle = time * speed;
+    float camX = radius * cos(angle);
+    float camY = radius * sin(angle);
+    float camZ = 1.0f; // 固定高度
+
+    glm::vec3 cameraPos(camX, camY, camZ);
+
+    ubo.view = glm::lookAt(cameraPos,
+                           glm::vec3(0.0f),              // 看向原点
+                           glm::vec3(0.0f, 0.0f, 1.0f)); // 上方向 Z
+
     // 视图矩阵
-    ubo.view = glm::lookAt(PTF_3D(2.0f, 2.0f, 2.0f), PTF_3D(0.0f),
-                           PTF_3D(0.0f, 0.0f, 1.0f));
+    // ubo.view = glm::lookAt(_cameraPos, PTF_3D(0.0f), PTF_3D(0.0f,
+    // 0.0f, 1.0f));
 
     const auto &extent = _swapchain->GetExtent();
 

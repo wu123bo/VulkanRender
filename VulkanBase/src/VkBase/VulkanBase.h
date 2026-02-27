@@ -153,6 +153,10 @@ private:
 
     uint32_t _currentFrame = 0;
     uint32_t MAX_FRAMES_IN_FLIGHT = 2;
+
+private:
+    PTF_3D _cameraPos = PTF_3D(0.0f, 5.0f, 0.0f);
+
 };
 } // namespace VKB
 

@@ -58,6 +58,12 @@ struct UniformVec
     std::vector<void *> buffersMapped;
 };
 
+struct PushObject
+{
+    alignas(16) MAT_4 model;
+    alignas(16) PTF_3D color;
+};
+
 // 矩阵信息结构体
 struct MvpMatrix
 {

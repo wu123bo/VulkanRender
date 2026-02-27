@@ -163,6 +163,7 @@ bool VulkanCommandBuffer::Record(uint32_t index, VkRenderPass renderPass,
     // 与顶点缓冲区和索引缓冲区不同，描述符集对于图形管线不是唯一的。
     // 因此，我们需要指定是否要将描述符集绑定到图形管线或计算管线。
     // 然后是开始索引 个数 绑定的描述符集合
+
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
                             pipelineLayout, 0, 1, &descriptorSets[index], 0,
                             nullptr);
@@ -173,6 +174,92 @@ bool VulkanCommandBuffer::Record(uint32_t index, VkRenderPass renderPass,
     vkCmdEndRenderPass(cmd);
     vkEndCommandBuffer(cmd);
 
+    return true;
+}
+
+bool VulkanCommandBuffer::Record(uint32_t index, VkRenderPass renderPass,
+                                 VkFramebuffer framebuffer, VkExtent2D extent,
+                                 VkPipeline pipeline,
+                                 VkPipelineLayout pipelineLayout,
+                                 std::vector<VkDescriptorSet> &descriptorSets,
+                                 VkBuffer vertexBuffer, VkBuffer indexBuffer,
+                                 uint32_t indexCount,
+                                 std::vector<PushObject> &pushObjects)
+{
+    VkCommandBuffer cmd = _commandBuffers[index];
+
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    vkBeginCommandBuffer(cmd, &beginInfo);
+
+    // =========================
+    // RenderPass Begin
+    // =========================
+    VkRenderPassBeginInfo renderPassInfo{};
+    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    renderPassInfo.renderPass = renderPass;
+    renderPassInfo.framebuffer = framebuffer;
+    renderPassInfo.renderArea.offset = {0, 0};
+    renderPassInfo.renderArea.extent = extent;
+
+    VkClearValue clearColor{};
+    clearColor.color = {{_backColor.x, _backColor.y, _backColor.z, 1.0f}};
+    renderPassInfo.clearValueCount = 1;
+    renderPassInfo.pClearValues = &clearColor;
+
+    vkCmdBeginRenderPass(cmd, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+    // =========================
+    // Pipeline
+    // =========================
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+
+    // =========================
+    // Dynamic viewport & scissor
+    // =========================
+    VkViewport viewport{};
+    viewport.x = 0.0f;
+    viewport.y = 0.0f;
+    viewport.width = static_cast<float>(extent.width);
+    viewport.height = static_cast<float>(extent.height);
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+    vkCmdSetViewport(cmd, 0, 1, &viewport);
+
+    VkRect2D scissor{};
+    scissor.offset = {0, 0};
+    scissor.extent = extent;
+    vkCmdSetScissor(cmd, 0, 1, &scissor);
+
+    // =========================
+    // DescriptorSet（每帧）
+    // =========================
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            pipelineLayout, 0, 1, &descriptorSets[index], 0,
+                            nullptr);
+
+    // =========================
+    // Vertex / Index Buffer
+    // =========================
+    VkBuffer buffers[] = {vertexBuffer};
+    VkDeviceSize offsets[] = {0};
+    vkCmdBindVertexBuffers(cmd, 0, 1, buffers, offsets);
+    vkCmdBindIndexBuffer(cmd, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
+    // =========================
+    // Draw Objects（Push Constant）
+    // =========================
+    for (const auto &obj : pushObjects) {
+        vkCmdPushConstants(cmd, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0,
+                           sizeof(PushObject),
+                           &obj // ✅ 正确
+        );
+
+        vkCmdDrawIndexed(cmd, indexCount, 1, 0, 0, 0);
+    }
+
+    vkCmdEndRenderPass(cmd);
+    vkEndCommandBuffer(cmd);
     return true;
 }
 
