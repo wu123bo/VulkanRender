@@ -168,7 +168,7 @@ int VulkanBase::InitVulkan(GLFWwindow *window)
 
     if (!_textures[1].InitFromFile(
             _physicalDevice->Get(), _device->Get(), _commandPool->Get(),
-            _device->GetGraphicsQueue(), "Res/Image/yang.jpg")) {
+            _device->GetGraphicsQueue(), "Res/Image/statue.jpg")) {
         return false;
     }
 
@@ -230,9 +230,9 @@ int VulkanBase::InitVulkan(GLFWwindow *window)
     // 描述符池创建信息
     std::vector<VkDescriptorPoolSize> poolSizes(2);
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    // 两个 UBO（MVP + Color） 所以 * 2
+    // 两个 UBO（MVP + Color + Light） 所以 * 3 （根据Unifrom 数量定）
     poolSizes[0].descriptorCount =
-        static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT * 2);
+        static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT * 3);
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     poolSizes[1].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
 
