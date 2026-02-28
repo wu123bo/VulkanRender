@@ -77,6 +77,57 @@ inline VkFormat FindDepthFormat(VkPhysicalDevice physicalDevice)
                                VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
 }
 
+// 创建命令缓冲区记录 并绑定 开始单次命令
+inline VkCommandBuffer BeginSingleTimeCommand(VkDevice device,
+                                              VkCommandPool commandPool)
+{
+    // 内存传输操作使用命令缓冲区执行，就像绘制命令一样。
+    // 因此，我们必须首先分配一个临时命令缓冲区
+
+    // 创建分配命令缓冲区信息
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandPool = commandPool;
+    allocInfo.commandBufferCount = 1;
+
+    // 创建分配命令缓冲区
+    VkCommandBuffer commandBuffer;
+    vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
+
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    // 创建命令缓冲区记录
+    vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+    return commandBuffer;
+}
+
+// 停止命令缓冲区记录 结束单次命令
+inline void EndSingleTimeCommand(VkDevice device, VkCommandPool commandPool,
+                          VkQueue graphicsQueue, VkCommandBuffer commandBuffer)
+{
+    // 停止命令缓冲区记录
+    vkEndCommandBuffer(commandBuffer);
+
+    // 提交命令缓冲区
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &commandBuffer;
+
+    // 将命令缓冲区提交到图形队列
+    vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+
+    // 等待传输队列使用 vkQueueWaitIdle 变为闲置状态
+    vkQueueWaitIdle(graphicsQueue);
+
+    // 清理用于传输操作的命令缓冲区
+    vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
+}
+
 } // namespace VKB
 
 #endif // VULKAN_UTILS_H_

@@ -67,6 +67,11 @@ set(SRC
     src/VkBase/VulkanDepthBuffer.cpp
     src/VkBase/VulkanAttachmentDesc.h
     src/VkBase/VulkanAttachmentDesc.cpp
+
+    src/VkBase/VulkanSamper.h
+    src/VkBase/VulkanSamper.cpp
+    src/VkBase/VulkanTexture.h
+    src/VkBase/VulkanTexture.cpp
 )
 
 add_executable(${ProName} ${SRC})

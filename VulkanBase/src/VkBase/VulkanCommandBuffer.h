@@ -76,7 +76,7 @@ public:
     }
 
 private:
-    glm::vec3 _backColor = glm::vec3(0.0f);
+    glm::vec3 _backColor = glm::vec3(1.0f);
 
     // 逻辑设备
     VkDevice _device = VK_NULL_HANDLE;

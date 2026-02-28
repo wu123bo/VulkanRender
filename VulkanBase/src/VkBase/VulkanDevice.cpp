@@ -61,8 +61,13 @@ bool VulkanDevice::Init(const VulkanPhysicalDevice *physicalDevice)
         static_cast<uint32_t>(_deviceExtensions.size());
     createInfo.ppEnabledExtensionNames = _deviceExtensions.data();
 
-    // 先不启用任何 特性(Feature可根据需要加)
+    // 特性(Feature可根据需要加)
     VkPhysicalDeviceFeatures deviceFeatures{};
+    // 各向异性过滤实际上是一个可选的设备特性
+    deviceFeatures.samplerAnisotropy = VK_TRUE;
+    // 为设备启用样本着色功能
+    deviceFeatures.sampleRateShading = VK_TRUE;
+
     createInfo.pEnabledFeatures = &deviceFeatures;
 
     // 创建逻辑设备

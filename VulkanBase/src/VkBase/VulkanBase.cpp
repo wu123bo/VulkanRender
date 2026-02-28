@@ -34,6 +34,10 @@ VulkanBase::VulkanBase()
     _descriptorPool = new VulkanDescriptorPool();
 
     _depthBuffer = new VulkanDepthBuffer();
+
+    _sampler = new VulkanSampler();
+
+    _texture = new VulkanTexture();
 }
 
 VulkanBase::~VulkanBase()
@@ -133,7 +137,7 @@ int VulkanBase::InitVulkan(GLFWwindow *window)
     if (!_vertexBuffer->Init(_physicalDevice->Get(), _device->Get(),
                              _commandPool->Get(), _device->GetGraphicsQueue(),
                              _vertices.data(),
-                             sizeof(VerCor) * _vertices.size())) {
+                             sizeof(VerCorTex) * _vertices.size())) {
         return false;
     }
 
@@ -145,6 +149,20 @@ int VulkanBase::InitVulkan(GLFWwindow *window)
                             _commandPool->Get(), _device->GetGraphicsQueue(),
                             _indices.data(),
                             sizeof(uint32_t) * _indices.size())) {
+        return false;
+    }
+
+    // =========================
+    // 创建 采样器
+    // =========================
+    _sampler->Init(_physicalDevice->Get(), _device->Get());
+
+    // =========================
+    // 创建 Texture
+    // =========================
+    if (!_texture->InitFromFile(
+            _physicalDevice->Get(), _device->Get(), _commandPool->Get(),
+            _device->GetGraphicsQueue(), "Res/Image/statue.jpg")) {
         return false;
     }
 
@@ -160,9 +178,14 @@ int VulkanBase::InitVulkan(GLFWwindow *window)
     VkDescriptorSetLayoutBinding uboColorBindind = _descriptorSetLayout->Make(
         1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
 
+    // 采样器布局绑定
+    VkDescriptorSetLayoutBinding sampleBindind =
+        _descriptorSetLayout->Make(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                                   VK_SHADER_STAGE_FRAGMENT_BIT);
+
     // 描述符数组
-    std::vector<VkDescriptorSetLayoutBinding> bindings = {uboMvpBindind,
-                                                          uboColorBindind};
+    std::vector<VkDescriptorSetLayoutBinding> bindings = {
+        uboMvpBindind, uboColorBindind, sampleBindind};
 
     // 描述符集布局创建信息
     _descriptorSetLayout->Init(_device->Get(), bindings);
@@ -217,19 +240,25 @@ int VulkanBase::InitVulkan(GLFWwindow *window)
     // 配置描述符类
     VulkanDescriptorSet descriptorSet;
     for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+
         // 配置描述符
         descriptorSet.Init(_device->Get(), _descriptorSets[i]);
+
         descriptorSet.UpdateBuffer(0, _uniformMVPBuffer[i].Get(),
                                    _uniformMVPBuffer[i].GetSize());
 
-        descriptorSet.Init(_device->Get(), _descriptorSets[i]);
         descriptorSet.UpdateBuffer(1, _uniformColorBuffer[i].Get(),
                                    _uniformColorBuffer[i].GetSize());
+
+        descriptorSet.UpdateBuffer(2, _texture->GetImageView(),
+                                   _sampler->Get());
     }
 
-    _shaderModule[0]->Init(_device->Get(), "Res\\Shaders\\VerMVPColorPush.spv",
+    _shaderModule[0]->Init(_device->Get(),
+                           "Res\\Shaders\\VerMVPColorPushTex.spv",
                            VK_SHADER_STAGE_VERTEX_BIT);
-    _shaderModule[1]->Init(_device->Get(), "Res\\Shaders\\frag.spv",
+    _shaderModule[1]->Init(_device->Get(),
+                           "Res\\Shaders\\VerMVPColorPushTexFrag.spv",
                            VK_SHADER_STAGE_FRAGMENT_BIT);
 
     if (!_pipeline->Init(_device->Get(), _renderPass->Get(),
@@ -265,6 +294,11 @@ int VulkanBase::DrawFrame()
     }
 
     updateUniformBuffer(_currentFrame);
+
+    bool needUpdateTexture = false; // 这里可以根据实际情况设置是否需要更新纹理
+    if (needUpdateTexture) {
+        updateTextureIfNeeded();
+    }
 
     vkResetFences(_device->Get(), 1, &inFlightFence);
 
@@ -361,6 +395,10 @@ void VulkanBase::Shutdown()
     _descriptorSets.clear();
 
     SDelete(_depthBuffer);
+
+    SDelete(_sampler);
+
+    SDelete(_texture);
 
     SDelete(_pipeline);
     SDelete(_pipelineLayout);
@@ -489,6 +527,30 @@ void VulkanBase::updateUniformBuffer(uint32_t currentImage)
     colorUbo.alpha = static_cast<float>(std::rand()) / RAND_MAX;
 
     _uniformColorBuffer[currentImage].Update(&colorUbo, sizeof(AlphaColor));
+}
+
+void VulkanBase::updateTextureIfNeeded()
+{
+    VulkanTexture *newTexture = new VulkanTexture();
+    if (!newTexture->InitFromFile(
+            _physicalDevice->Get(), _device->Get(), _commandPool->Get(),
+            _device->GetGraphicsQueue(), "Res/Image/yang.jpg")) {
+        SDelete(newTexture);
+        return;
+    }
+
+    // 配置描述符类
+    VulkanDescriptorSet descriptorSet;
+    for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+
+        // 配置描述符
+        descriptorSet.Init(_device->Get(), _descriptorSets[i]);
+        descriptorSet.UpdateBuffer(2, newTexture->GetImageView(),
+                                   _sampler->Get());
+    }
+
+    SDelete(_texture);
+    _texture = newTexture;
 }
 
 void VulkanBase::cleanupSwapchain()

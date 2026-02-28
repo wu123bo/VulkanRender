@@ -18,10 +18,12 @@
 #include "VulkanPipeline.h"
 #include "VulkanPipelineLayout.h"
 #include "VulkanRenderPass.h"
+#include "VulkanSamper.h"
 #include "VulkanShaderModule.h"
 #include "VulkanSurface.h"
 #include "VulkanSwapchain.h"
 #include "VulkanSync.h"
+#include "VulkanTexture.h"
 #include "VulkanUniformBuffer.h"
 #include "VulkanUtils.h"
 #include "VulkanVertexBuffer.h"
@@ -53,6 +55,8 @@ private:
     // 更新uniform缓冲区
     void updateUniformBuffer(uint32_t currentImage);
 
+    void updateTextureIfNeeded();
+
     void cleanupSwapchain();
 
 private:
@@ -75,16 +79,13 @@ private:
     VulkanSync *_sync = nullptr;
 
     VulkanVertexBuffer *_vertexBuffer = nullptr;
-
     VulkanIndexBuffer *_indexBuffer = nullptr;
 
     VulkanDescriptorSetLayout *_descriptorSetLayout = nullptr;
+    VulkanDescriptorPool *_descriptorPool = nullptr;
 
     std::vector<VulkanUniformBuffer> _uniformMVPBuffer;
-
     std::vector<VulkanUniformBuffer> _uniformColorBuffer;
-
-    VulkanDescriptorPool *_descriptorPool = nullptr;
 
     std::vector<VkDescriptorSet>
         _descriptorSets; // 存放所有分配的 DescriptorSet
@@ -92,6 +93,10 @@ private:
     VulkanDepthBuffer *_depthBuffer = nullptr;
 
     VulkanAttachmentDesc _attachmentDesc; // 附件描述
+
+    VulkanSampler *_sampler = nullptr; // 纹理采样器
+
+    VulkanTexture *_texture = nullptr; // 纹理对象
 
 private:
     MvpMatrix _MVP;
@@ -104,42 +109,42 @@ private:
 private:
     uint32_t _vertexCount = 0;
 
-    const std::vector<VerCor> _vertices = {
+    const std::vector<VerCorTex> _vertices = {
         // Front (+Z)
-        {{-0.5f, -0.5f, 0.5f}, {1, 0, 0}},
-        {{0.5f, -0.5f, 0.5f}, {1, 0, 0}},
-        {{0.5f, 0.5f, 0.5f}, {1, 0, 0}},
-        {{-0.5f, 0.5f, 0.5f}, {1, 0, 0}},
+        {{-0.5f, -0.5f, 0.5f}, {1, 0, 0}, {0, 0}},
+        {{0.5f, -0.5f, 0.5f}, {1, 0, 0}, {1, 0}},
+        {{0.5f, 0.5f, 0.5f}, {1, 0, 0}, {1, 1}},
+        {{-0.5f, 0.5f, 0.5f}, {1, 0, 0}, {0, 1}},
 
         // Back (-Z)
-        {{-0.5f, -0.5f, -0.5f}, {0, 1, 0}},
-        {{0.5f, -0.5f, -0.5f}, {0, 1, 0}},
-        {{0.5f, 0.5f, -0.5f}, {0, 1, 0}},
-        {{-0.5f, 0.5f, -0.5f}, {0, 1, 0}},
+        {{0.5f, -0.5f, -0.5f}, {0, 1, 0}, {0, 0}},
+        {{-0.5f, -0.5f, -0.5f}, {0, 1, 0}, {1, 0}},
+        {{-0.5f, 0.5f, -0.5f}, {0, 1, 0}, {1, 1}},
+        {{0.5f, 0.5f, -0.5f}, {0, 1, 0}, {0, 1}},
 
         // Left (-X)
-        {{-0.5f, -0.5f, -0.5f}, {0, 0, 1}},
-        {{-0.5f, -0.5f, 0.5f}, {0, 0, 1}},
-        {{-0.5f, 0.5f, 0.5f}, {0, 0, 1}},
-        {{-0.5f, 0.5f, -0.5f}, {0, 0, 1}},
+        {{-0.5f, -0.5f, -0.5f}, {0, 0, 1}, {0, 0}},
+        {{-0.5f, -0.5f, 0.5f}, {0, 0, 1}, {1, 0}},
+        {{-0.5f, 0.5f, 0.5f}, {0, 0, 1}, {1, 1}},
+        {{-0.5f, 0.5f, -0.5f}, {0, 0, 1}, {0, 1}},
 
         // Right (+X)
-        {{0.5f, -0.5f, -0.5f}, {1, 1, 0}},
-        {{0.5f, -0.5f, 0.5f}, {1, 1, 0}},
-        {{0.5f, 0.5f, 0.5f}, {1, 1, 0}},
-        {{0.5f, 0.5f, -0.5f}, {1, 1, 0}},
+        {{0.5f, -0.5f, 0.5f}, {1, 1, 0}, {0, 0}},
+        {{0.5f, -0.5f, -0.5f}, {1, 1, 0}, {1, 0}},
+        {{0.5f, 0.5f, -0.5f}, {1, 1, 0}, {1, 1}},
+        {{0.5f, 0.5f, 0.5f}, {1, 1, 0}, {0, 1}},
 
         // Top (+Y)
-        {{-0.5f, 0.5f, -0.5f}, {1, 0, 1}},
-        {{0.5f, 0.5f, -0.5f}, {1, 0, 1}},
-        {{0.5f, 0.5f, 0.5f}, {1, 0, 1}},
-        {{-0.5f, 0.5f, 0.5f}, {1, 0, 1}},
+        {{-0.5f, 0.5f, 0.5f}, {1, 0, 1}, {0, 0}},
+        {{0.5f, 0.5f, 0.5f}, {1, 0, 1}, {1, 0}},
+        {{0.5f, 0.5f, -0.5f}, {1, 0, 1}, {1, 1}},
+        {{-0.5f, 0.5f, -0.5f}, {1, 0, 1}, {0, 1}},
 
         // Bottom (-Y)
-        {{-0.5f, -0.5f, -0.5f}, {0, 1, 1}},
-        {{0.5f, -0.5f, -0.5f}, {0, 1, 1}},
-        {{0.5f, -0.5f, 0.5f}, {0, 1, 1}},
-        {{-0.5f, -0.5f, 0.5f}, {0, 1, 1}},
+        {{-0.5f, -0.5f, -0.5f}, {0, 1, 1}, {0, 0}},
+        {{0.5f, -0.5f, -0.5f}, {0, 1, 1}, {1, 0}},
+        {{0.5f, -0.5f, 0.5f}, {0, 1, 1}, {1, 1}},
+        {{-0.5f, -0.5f, 0.5f}, {0, 1, 1}, {0, 1}},
     };
 
     uint32_t _indexCount = 0;

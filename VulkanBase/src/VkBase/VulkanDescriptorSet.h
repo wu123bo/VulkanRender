@@ -20,6 +20,10 @@ public:
     void UpdateBuffer(uint32_t binding, const VkBuffer &buffer,
                       uint32_t bufferSize);
 
+    // 更新 uniform buffer
+    void UpdateBuffer(uint32_t binding, VkImageView textureImageView,
+                      VkSampler textureSampler);
+
     VkDescriptorSet Get() const
     {
         return _set;
