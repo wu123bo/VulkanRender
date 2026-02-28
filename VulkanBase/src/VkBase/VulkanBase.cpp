@@ -37,7 +37,7 @@ VulkanBase::VulkanBase()
 
     _sampler = new VulkanSampler();
 
-    _texture = new VulkanTexture();
+    _textures.resize(MAX_FRAMES_IN_FLIGHT);
 }
 
 VulkanBase::~VulkanBase()
@@ -137,7 +137,7 @@ int VulkanBase::InitVulkan(GLFWwindow *window)
     if (!_vertexBuffer->Init(_physicalDevice->Get(), _device->Get(),
                              _commandPool->Get(), _device->GetGraphicsQueue(),
                              _vertices.data(),
-                             sizeof(VerCorTex) * _vertices.size())) {
+                             sizeof(VerCorTexNor) * _vertices.size())) {
         return false;
     }
 
@@ -160,9 +160,15 @@ int VulkanBase::InitVulkan(GLFWwindow *window)
     // =========================
     // 创建 Texture
     // =========================
-    if (!_texture->InitFromFile(
+    if (!_textures[0].InitFromFile(
             _physicalDevice->Get(), _device->Get(), _commandPool->Get(),
             _device->GetGraphicsQueue(), "Res/Image/statue.jpg")) {
+        return false;
+    }
+
+    if (!_textures[1].InitFromFile(
+            _physicalDevice->Get(), _device->Get(), _commandPool->Get(),
+            _device->GetGraphicsQueue(), "Res/Image/yang.jpg")) {
         return false;
     }
 
@@ -183,9 +189,13 @@ int VulkanBase::InitVulkan(GLFWwindow *window)
         _descriptorSetLayout->Make(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                                    VK_SHADER_STAGE_FRAGMENT_BIT);
 
+    // 光照信息布局绑定
+    VkDescriptorSetLayoutBinding lightBindind = _descriptorSetLayout->Make(
+        3, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT);
+
     // 描述符数组
     std::vector<VkDescriptorSetLayoutBinding> bindings = {
-        uboMvpBindind, uboColorBindind, sampleBindind};
+        uboMvpBindind, uboColorBindind, sampleBindind, lightBindind};
 
     // 描述符集布局创建信息
     _descriptorSetLayout->Init(_device->Get(), bindings);
@@ -207,11 +217,14 @@ int VulkanBase::InitVulkan(GLFWwindow *window)
     // =========================
     _uniformMVPBuffer.resize(MAX_FRAMES_IN_FLIGHT);
     _uniformColorBuffer.resize(MAX_FRAMES_IN_FLIGHT);
+    _uniformLightBuffer.resize(MAX_FRAMES_IN_FLIGHT);
     for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         _uniformMVPBuffer[i].Init(_physicalDevice->Get(), _device->Get(),
                                   sizeof(MvpMatrix));
         _uniformColorBuffer[i].Init(_physicalDevice->Get(), _device->Get(),
                                     sizeof(AlphaColor));
+        _uniformLightBuffer[i].Init(_physicalDevice->Get(), _device->Get(),
+                                    sizeof(LightInfo));
     }
 
     // 描述符池创建信息
@@ -250,15 +263,18 @@ int VulkanBase::InitVulkan(GLFWwindow *window)
         descriptorSet.UpdateBuffer(1, _uniformColorBuffer[i].Get(),
                                    _uniformColorBuffer[i].GetSize());
 
-        descriptorSet.UpdateBuffer(2, _texture->GetImageView(),
+        descriptorSet.UpdateBuffer(2, _textures[0].GetImageView(),
                                    _sampler->Get());
+
+        descriptorSet.UpdateBuffer(3, _uniformLightBuffer[i].Get(),
+                                   _uniformLightBuffer[i].GetSize());
     }
 
     _shaderModule[0]->Init(_device->Get(),
-                           "Res\\Shaders\\VerMVPColorPushTex.spv",
+                           "Res\\Shaders\\VerMVPColorPushTexLight.spv",
                            VK_SHADER_STAGE_VERTEX_BIT);
     _shaderModule[1]->Init(_device->Get(),
-                           "Res\\Shaders\\VerMVPColorPushTexFrag.spv",
+                           "Res\\Shaders\\VerMVPColorPushTexLightFrag.spv",
                            VK_SHADER_STAGE_FRAGMENT_BIT);
 
     if (!_pipeline->Init(_device->Get(), _renderPass->Get(),
@@ -267,7 +283,7 @@ int VulkanBase::InitVulkan(GLFWwindow *window)
         return false;
     }
 
-    if (!_sync->Init(_device->Get())) {
+    if (!_sync->Init(_device->Get(),_swapchain->GetImageViewCount())) {
         return false;
     }
 
@@ -294,11 +310,7 @@ int VulkanBase::DrawFrame()
     }
 
     updateUniformBuffer(_currentFrame);
-
-    bool needUpdateTexture = false; // 这里可以根据实际情况设置是否需要更新纹理
-    if (needUpdateTexture) {
-        updateTextureIfNeeded();
-    }
+    // updateTextureIfNeeded(_currentFrame);
 
     vkResetFences(_device->Get(), 1, &inFlightFence);
 
@@ -389,6 +401,7 @@ void VulkanBase::Shutdown()
 
     _uniformMVPBuffer.clear();
     _uniformColorBuffer.clear();
+    _uniformLightBuffer.clear();
 
     SDelete(_descriptorSetLayout);
     SDelete(_descriptorPool);
@@ -398,7 +411,7 @@ void VulkanBase::Shutdown()
 
     SDelete(_sampler);
 
-    SDelete(_texture);
+    _textures.clear();
 
     SDelete(_pipeline);
     SDelete(_pipelineLayout);
@@ -465,68 +478,56 @@ void VulkanBase::recreateSwapchain()
 
 void VulkanBase::updateUniformBuffer(uint32_t currentImage)
 {
-
-    // 计算自渲染开始以来以秒为单位的时间
+    // --- 时间计算 ---
     static auto startTime = std::chrono::high_resolution_clock::now();
-
-    // 当前时间
     auto currentTime = std::chrono::high_resolution_clock::now();
     float time = std::chrono::duration<float, std::chrono::seconds::period>(
                      currentTime - startTime)
                      .count();
 
-    /**************更新 MVP ubo***************************/
-
+    // ====== MVP ======
     MvpMatrix ubo{};
-    // 模型矩阵沿Z轴每秒旋转90°
     ubo.model = glm::rotate(MAT_4(1.0f), time * glm::radians(90.0f),
                             PTF_3D(0.0f, 0.0f, 1.0f));
 
-    // ubo.model = MAT_4(1.0f);
-
-    float radius = 5.0f;               // 摄像机到原点距离
-    float speed = glm::radians(45.0f); // 每秒旋转角度
-
+    float radius = 5.0f;
+    float speed = glm::radians(45.0f);
     float angle = time * speed;
     float camX = radius * cos(angle);
     float camY = radius * sin(angle);
-    float camZ = 1.0f; // 固定高度
+    float camZ = 1.0f;
 
     glm::vec3 cameraPos(camX, camY, camZ);
-
-    ubo.view = glm::lookAt(cameraPos,
-                           glm::vec3(0.0f),              // 看向原点
-                           glm::vec3(0.0f, 0.0f, 1.0f)); // 上方向 Z
-
-    // 视图矩阵
-    // ubo.view = glm::lookAt(_cameraPos, PTF_3D(0.0f), PTF_3D(0.0f,
-    // 0.0f, 1.0f));
+    ubo.view =
+        glm::lookAt(cameraPos, glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 
     const auto &extent = _swapchain->GetExtent();
+    ubo.proj = glm::perspective(glm::radians(45.0f),
+                                float(extent.width) / float(extent.height),
+                                0.1f, 10.0f);
+    ubo.proj[1][1] *= -1; // glm Y轴反转
 
-    // 投影矩阵
-    float sceen = (float)extent.width / (float)extent.height;
-    ubo.proj = glm::perspective(glm::radians(45.0f), sceen, 0.1f, 10.0f);
-
-    // glm裁剪坐标Y是反的
-    ubo.proj[1][1] *= -1;
-
-    // 拷贝数据到缓冲区内存
     _uniformMVPBuffer[currentImage].Update(&ubo, sizeof(MvpMatrix));
 
-    /**************更新 颜色透明度 ubo***************************/
+    // ====== 颜色/透明度 ======
     static bool firstCall = true;
     if (firstCall) {
-        std::srand(
-            static_cast<unsigned int>(std::time(nullptr))); // 只初始化一次
+        std::srand(static_cast<unsigned int>(std::time(nullptr)));
         firstCall = false;
     }
-
     AlphaColor colorUbo{};
-    colorUbo.color = glm::vec3(1.0f, 1.0f, 1.0f);
+    colorUbo.color = glm::vec3(1.0f);
     colorUbo.alpha = static_cast<float>(std::rand()) / RAND_MAX;
-
     _uniformColorBuffer[currentImage].Update(&colorUbo, sizeof(AlphaColor));
+
+    // ====== 光照信息 ======
+    LightInfo lightUbo{};
+    lightUbo.lightPos =
+        PTF_3D(2.0f * sin(time), 2.0f, 2.0f * cos(time)); // 光源绕Y旋转
+    lightUbo.lightColor = PTF_3D(1.0f, 1.0f, 1.0f);       // 白光
+    lightUbo.viewPos = cameraPos;                         // 摄像机位置
+
+    _uniformLightBuffer[currentImage].Update(&lightUbo, sizeof(LightInfo));
 }
 
 void VulkanBase::updateTextureIfNeeded()
@@ -549,8 +550,19 @@ void VulkanBase::updateTextureIfNeeded()
                                    _sampler->Get());
     }
 
-    SDelete(_texture);
-    _texture = newTexture;
+    // SDelete(_texture);
+    //_texture = newTexture;
+}
+
+void VulkanBase::updateTextureIfNeeded(uint32_t currentImage)
+{
+    // 配置描述符类
+    VulkanDescriptorSet descriptorSet;
+
+    // 配置描述符 只更新当前帧的描述符集
+    descriptorSet.Init(_device->Get(), _descriptorSets[currentImage]);
+    descriptorSet.UpdateBuffer(2, _textures[currentImage].GetImageView(),
+                               _sampler->Get());
 }
 
 void VulkanBase::cleanupSwapchain()

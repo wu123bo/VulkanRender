@@ -32,8 +32,8 @@ bool VulkanPipeline::Init(VkDevice device, VkRenderPass renderPass,
     }
 
     // 顶点属性描述
-    auto bindingDesc = VerCorTex::getBindingDescription();
-    auto attrDesc = VerCorTex::getAttributeDescriptions();
+    auto bindingDesc = VerCorTexNor::getBindingDescription();
+    auto attrDesc = VerCorTexNor::getAttributeDescriptions();
 
     // =========================
     // Vertex Input

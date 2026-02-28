@@ -93,6 +93,14 @@ struct MvpMatrix
     alignas(16) MAT_4 proj;
 };
 
+// 光照信息结构体
+struct LightInfo
+{
+    alignas(16) PTF_3D lightPos;
+    alignas(16) PTF_3D lightColor;
+    alignas(16) PTF_3D viewPos;
+};
+
 // 颜色透明度
 struct AlphaColor
 {
@@ -214,6 +222,71 @@ struct VerCorTex
     {
         return pos == other.pos && color == other.color
                && texCoord == other.texCoord;
+    }
+};
+
+// 顶点坐标颜色结构体
+struct VerCorTexNor
+{
+    PTF_3D pos;
+    PTF_3D color;
+    PTF_2D texCoord;
+    PTF_3D normal;
+
+    // 绑定描述
+    //  顶点绑定描述了在整个顶点中从内存加载数据的速率
+    static VkVertexInputBindingDescription getBindingDescription()
+    {
+        VkVertexInputBindingDescription bindingDescription{};
+        // 指定绑定数组中绑定的索引
+        bindingDescription.binding = 0;
+        // 指定从一个条目到下一个条目的字节数
+        bindingDescription.stride = sizeof(VerCorTexNor);
+        // 在每个顶点之后移动到下一个数据条目
+        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+        return bindingDescription;
+    }
+
+    // 属性描述
+    // 属性描述结构描述了如何从来自绑定描述的顶点数据块中提取顶点属性
+    static std::array<VkVertexInputAttributeDescription, 4>
+    getAttributeDescriptions()
+    {
+        std::array<VkVertexInputAttributeDescription, 4>
+            attributeDescriptions{};
+        // 告诉 Vulkan 每个顶点的数据来自哪个绑定
+        attributeDescriptions[0].binding = 0;
+        // 引用顶点着色器中输入的 location 指令
+        attributeDescriptions[0].location = 0;
+        // 描述属性的数据类型
+        attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+        // 定自每个顶点数据的开始读取的字节数
+        attributeDescriptions[0].offset = offsetof(VerCorTexNor, pos);
+
+        // format例如
+        // float：VK_FORMAT_R32_SFLOAT
+        // vec2：VK_FORMAT_R32G32_SFLOAT
+
+        // 颜色属性相同设置
+        attributeDescriptions[1].binding = 0;
+        attributeDescriptions[1].location = 1;
+        attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+        attributeDescriptions[1].offset = offsetof(VerCorTexNor, color);
+
+        // 颜色属性相同设置
+        attributeDescriptions[2].binding = 0;
+        attributeDescriptions[2].location = 2;
+        attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
+        attributeDescriptions[2].offset = offsetof(VerCorTexNor, texCoord);
+
+        // 颜色属性相同设置
+        attributeDescriptions[3].binding = 0;
+        attributeDescriptions[3].location = 3;
+        attributeDescriptions[3].format = VK_FORMAT_R32G32B32_SFLOAT;
+        attributeDescriptions[3].offset = offsetof(VerCorTexNor, normal);
+
+        return attributeDescriptions;
     }
 };
 
