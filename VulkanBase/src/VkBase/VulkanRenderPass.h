@@ -45,18 +45,7 @@ public:
         return _renderPass;
     }
 
-private:
-    // 创建附件
-    VkAttachmentDescription
-    createAttachment(VkFormat format, VkSampleCountFlagBits samples,
-                     VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp,
-                     VkAttachmentLoadOp stencilLoadOp,
-                     VkAttachmentStoreOp stencilStoreOp,
-                     VkImageLayout initialLayout, VkImageLayout finalLayout);
 
-    // 创建附件引用
-    VkAttachmentReference makeAttachmentRef(uint32_t attachmentIndex,
-                                            VkImageLayout layout);
 
 private:
     // 逻辑设备句柄（用于创建和销毁所有 Vulkan 资源）

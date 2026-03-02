@@ -51,7 +51,7 @@ enum class AttachmentType
 {
     COLOR = 0,
     DEPTH,
-    STENCIL,
+    RESOLVE
     // 可以以后扩展 HDR、GBuffer 等类型
 };
 

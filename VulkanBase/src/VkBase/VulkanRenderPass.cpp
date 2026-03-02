@@ -28,6 +28,7 @@ bool VulkanRenderPass::Init(VkDevice device,
     // -------------------------
     auto colorRefs = attachmentDesc.GetAttachment(AttachmentType::COLOR);
     auto depthRefs = attachmentDesc.GetAttachment(AttachmentType::DEPTH);
+    auto resolveRefs = attachmentDesc.GetAttachment(AttachmentType::RESOLVE);
 
     if (nullptr == colorRefs) {
         PSG::PrintError("创建渲染通道失败!");
@@ -39,8 +40,14 @@ bool VulkanRenderPass::Init(VkDevice device,
     subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &colorRefs->ref;
-    subpass.pDepthStencilAttachment =
-        depthRefs == nullptr ? nullptr : &depthRefs->ref;
+
+    if (depthRefs != nullptr) {
+        subpass.pDepthStencilAttachment = &depthRefs->ref;
+    }
+
+    if (resolveRefs != nullptr) {
+        subpass.pResolveAttachments = &resolveRefs->ref;
+    }
 
     // ---------- 子通道依赖（同步） ----------
     VkSubpassDependency dependency{};
@@ -48,12 +55,15 @@ bool VulkanRenderPass::Init(VkDevice device,
     dependency.dstSubpass = 0;
     dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
                               | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+
     dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
                               | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+
     dependency.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
                                | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
     dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
                                | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
 
     // ---------- 附件列表 ----------
     auto attachments = attachmentDesc.GetAllAttachments();
@@ -89,55 +99,6 @@ void VulkanRenderPass::Destroy()
         vkDestroyRenderPass(_device, _renderPass, nullptr);
         _renderPass = VK_NULL_HANDLE;
     }
-}
-
-VkAttachmentDescription VulkanRenderPass::createAttachment(
-    VkFormat format, VkSampleCountFlagBits samples, VkAttachmentLoadOp loadOp,
-    VkAttachmentStoreOp storeOp, VkAttachmentLoadOp stencilLoadOp,
-    VkAttachmentStoreOp stencilStoreOp, VkImageLayout initialLayout,
-    VkImageLayout finalLayout)
-{
-    VkAttachmentDescription desc{};
-
-    // 附件格式
-    desc.format = format;
-
-    // MSAA 采样数
-    desc.samples = samples;
-
-    // 颜色 / 深度加载策略
-    desc.loadOp = loadOp;
-
-    // 渲染结束后的存储策略
-    desc.storeOp = storeOp;
-
-    // 模板加载策略
-    desc.stencilLoadOp = stencilLoadOp;
-
-    // 模板存储策略
-    desc.stencilStoreOp = stencilStoreOp;
-
-    // 初始布局
-    desc.initialLayout = initialLayout;
-
-    // 最终布局
-    desc.finalLayout = finalLayout;
-    return desc;
-}
-
-VkAttachmentReference
-VulkanRenderPass::makeAttachmentRef(uint32_t attachmentIndex,
-                                    VkImageLayout layout)
-{
-    VkAttachmentReference ref{};
-
-    // 引用附件ID
-    ref.attachment = attachmentIndex;
-
-    // Subpass 中使用的图像布局
-    ref.layout = layout;
-
-    return ref;
 }
 
 } // namespace VKB

@@ -33,7 +33,8 @@ public:
      */
     bool Init(VkDevice device, VkRenderPass renderPass, VkPipelineLayout layout,
               const std::vector<VulkanShaderModule *> &shaders,
-              VkExtent2D extent);
+              VkExtent2D extent,
+              VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT);
 
     void Destroy();
 

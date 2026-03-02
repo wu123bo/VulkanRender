@@ -1,11 +1,20 @@
 ﻿#ifndef VULKANDEPTHBUFFER_H_
 #define VULKANDEPTHBUFFER_H_
 
-#include "VulkanHead.h"
+#include <vulkan/vulkan.h>
+
+#include "VulkanImage.h"
 
 namespace VKB
 {
 
+/**
+ * @brief 深度缓冲封装（基于 VulkanImage）
+ *
+ * 语义层：
+ *  - 表示一个 Depth Attachment
+ *  - 不关心 RenderPass / Framebuffer
+ */
 class VulkanDepthBuffer
 {
 public:
@@ -14,42 +23,30 @@ public:
     ~VulkanDepthBuffer();
 
     /**
-     * @brief 初始化深度缓冲
-     * @param physicalDevice Vulkan 物理设备
-     * @param device Vulkan 逻辑设备
-     * @param extent 交换链尺寸
-     * @param commandPool 命令池，用于 Buffer 拷贝
-     * @param graphicsQueue 图形队列
-     * @return 是否成功
+     * @brief 创建深度缓冲
      */
     bool Init(VkPhysicalDevice physicalDevice, VkDevice device,
-              VkExtent2D extent);
+              VkExtent2D extent,
+              VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT);
 
     void Destroy();
 
-    VkImage GetImage() const
-    {
-        return _image;
-    }
     VkImageView GetImageView() const
     {
-        return _imageView;
+        return _image.GetImageView();
     }
+
     VkFormat GetFormat() const
     {
         return _format;
     }
 
 private:
-    VkDevice _device = VK_NULL_HANDLE;
+    VulkanImage _image;
 
-    VkImage _image = VK_NULL_HANDLE;
-    VkDeviceMemory _memory = VK_NULL_HANDLE;
-    VkImageView _imageView = VK_NULL_HANDLE;
-
-    VkFormat _format = VK_FORMAT_D32_SFLOAT; // 默认使用 32-bit 浮点深度
+    VkFormat _format = VK_FORMAT_UNDEFINED;
 };
 
 } // namespace VKB
 
-#endif // VULKANDEPTHBUFFER_H_
+#endif // !VULKANDEPTHBUFFER_H_

@@ -25,9 +25,9 @@ public:
      * @brief 创建 Framebuffer（每个 Swapchain Image 一个）
      */
     bool Init(VkDevice device, VkRenderPass renderPass,
-              const std::vector<VkImageView> &colorImageViews,
-              const VkImageView &depthImageView,
-              VkExtent2D extent);
+              const std::vector<VkImageView> &swapImageViews,
+              const VkImageView &msaaImageView,
+              const VkImageView &depthImageView, VkExtent2D extent);
 
     void Destroy();
 

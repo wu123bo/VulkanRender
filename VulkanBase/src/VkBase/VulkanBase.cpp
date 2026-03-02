@@ -35,6 +35,8 @@ VulkanBase::VulkanBase()
 
     _depthBuffer = new VulkanDepthBuffer();
 
+    _msaaColorBuffer = new VulkanMsaaColorBuffer();
+
     _sampler = new VulkanSampler();
 
     _textures.resize(MAX_FRAMES_IN_FLIGHT);
@@ -83,13 +85,13 @@ int VulkanBase::InitVulkan(GLFWwindow *window)
     // 颜色附件
     // -------------------------
     _attachmentDesc.AddAttachment(
-        _swapchain->GetFormat(),         // Swapchain 格式
-        VK_SAMPLE_COUNT_1_BIT,           // MSAA
-        VK_ATTACHMENT_LOAD_OP_CLEAR,     // 渲染开始清除
-        VK_ATTACHMENT_STORE_OP_STORE,    // 渲染结束保存到交换链
-        VK_IMAGE_LAYOUT_UNDEFINED,       // 初始布局
-        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, // 最终布局
-        AttachmentType::COLOR            // 附件类型
+        _swapchain->GetFormat(),                  // Swapchain 格式
+        _physicalDevice->GetMsaaSamples(),        // MSAA
+        VK_ATTACHMENT_LOAD_OP_CLEAR,              // 渲染开始清除
+        VK_ATTACHMENT_STORE_OP_STORE,             // 渲染结束保存到交换链
+        VK_IMAGE_LAYOUT_UNDEFINED,                // 初始布局
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, // 最终布局
+        AttachmentType::COLOR                     // 附件类型
     );
 
     // -------------------------
@@ -97,29 +99,49 @@ int VulkanBase::InitVulkan(GLFWwindow *window)
     // -------------------------
     _attachmentDesc.AddAttachment(
         FindDepthFormat(_physicalDevice->Get()),          // 深度格式
-        VK_SAMPLE_COUNT_1_BIT,                            // MSAA
+        _physicalDevice->GetMsaaSamples(),                // MSAA
         VK_ATTACHMENT_LOAD_OP_CLEAR,                      // 清除深度
         VK_ATTACHMENT_STORE_OP_DONT_CARE,                 // 不需要保存深度
         VK_IMAGE_LAYOUT_UNDEFINED,                        // 初始布局
         VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, // 最终布局
         AttachmentType::DEPTH);
 
+    // -------------------------
+    // 解析附件 因为多重采样的图像不能直接呈现
+    // -------------------------
+    _attachmentDesc.AddAttachment(
+        _swapchain->GetFormat(),         // Swapchain 格式
+        VK_SAMPLE_COUNT_1_BIT,           // Resolve 的样本数必须是 1
+        VK_ATTACHMENT_LOAD_OP_DONT_CARE, // 渲染开始不清除
+        VK_ATTACHMENT_STORE_OP_STORE,    // 渲染结束保存到 swapchain
+        VK_IMAGE_LAYOUT_UNDEFINED,       // 初始布局
+        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, // finalLayout
+        AttachmentType::RESOLVE);        // 附件类型
+
     // 创建必须在 Framebuffer 之前，因为 Framebuffer 需要RenderPass 的句柄
     if (!_renderPass->Init(_device->Get(), _attachmentDesc)) {
         return false;
     }
 
+    // 多重采样缓冲的创建必须在 Framebuffer 之前，因为 Framebuffer 需要它的
+    if (!_msaaColorBuffer->Init(
+            _physicalDevice->Get(), _device->Get(), _swapchain->GetFormat(),
+            _swapchain->GetExtent(), _physicalDevice->GetMsaaSamples())) {
+        return false;
+    }
+
     // 深度缓冲的创建必须在 Framebuffer 之前，因为 Framebuffer 需要它的
-    // ImageView
     if (!_depthBuffer->Init(_physicalDevice->Get(), _device->Get(),
-                            _swapchain->GetExtent())) {
+                            _swapchain->GetExtent(),
+                            _physicalDevice->GetMsaaSamples())) {
         return false;
     }
 
     // 然后在创建 Framebuffer 时，把深度缓冲 ImageView 也加入 attachments
     if (!_framebuffer->Init(
             _device->Get(), _renderPass->Get(), _swapchain->GetImageViews(),
-            _depthBuffer->GetImageView(), _swapchain->GetExtent())) {
+            _msaaColorBuffer->GetImageView(), _depthBuffer->GetImageView(),
+            _swapchain->GetExtent())) {
         return false;
     }
 
@@ -253,7 +275,6 @@ int VulkanBase::InitVulkan(GLFWwindow *window)
     // 配置描述符类
     VulkanDescriptorSet descriptorSet;
     for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-
         // 配置描述符
         descriptorSet.Init(_device->Get(), _descriptorSets[i]);
 
@@ -279,11 +300,12 @@ int VulkanBase::InitVulkan(GLFWwindow *window)
 
     if (!_pipeline->Init(_device->Get(), _renderPass->Get(),
                          _pipelineLayout->Get(), _shaderModule,
-                         _swapchain->GetExtent())) {
+                         _swapchain->GetExtent(),
+                         _physicalDevice->GetMsaaSamples())) {
         return false;
     }
 
-    if (!_sync->Init(_device->Get(),_swapchain->GetImageViewCount())) {
+    if (!_sync->Init(_device->Get(), _swapchain->GetImageViewCount())) {
         return false;
     }
 
@@ -407,10 +429,7 @@ void VulkanBase::Shutdown()
     SDelete(_descriptorPool);
     _descriptorSets.clear();
 
-    SDelete(_depthBuffer);
-
     SDelete(_sampler);
-
     _textures.clear();
 
     SDelete(_pipeline);
@@ -459,15 +478,23 @@ void VulkanBase::recreateSwapchain()
                      _physicalDevice->GetGraphicsQueueFamily(),
                      _physicalDevice->GetPresentQueueFamily(), _width, _height);
 
+    // 重新创建 多重采样颜色缓冲
+    _msaaColorBuffer = new VulkanMsaaColorBuffer();
+    _msaaColorBuffer->Init(_physicalDevice->Get(), _device->Get(),
+                           _swapchain->GetFormat(), _swapchain->GetExtent(),
+                           _physicalDevice->GetMsaaSamples());
+
     // 重新创建 depthBuffer
     _depthBuffer = new VulkanDepthBuffer();
     _depthBuffer->Init(_physicalDevice->Get(), _device->Get(),
-                       _swapchain->GetExtent());
+                       _swapchain->GetExtent(),
+                       _physicalDevice->GetMsaaSamples());
 
     // 重新创建 Framebuffer
     _framebuffer = new VulkanFramebuffer();
     _framebuffer->Init(_device->Get(), _renderPass->Get(),
                        _swapchain->GetImageViews(),
+                       _msaaColorBuffer->GetImageView(),
                        _depthBuffer->GetImageView(), _swapchain->GetExtent());
 
     // 重新创建 CommandBuffer
@@ -569,6 +596,7 @@ void VulkanBase::cleanupSwapchain()
 {
     // 销毁旧资源
     SDelete(_depthBuffer);
+    SDelete(_msaaColorBuffer);
 
     SDelete(_framebuffer);
     SDelete(_commandBuffer);

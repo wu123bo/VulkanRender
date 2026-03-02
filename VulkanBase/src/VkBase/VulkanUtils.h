@@ -77,6 +77,43 @@ inline VkFormat FindDepthFormat(VkPhysicalDevice physicalDevice)
                                VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
 }
 
+// 获取最大可用采样数
+inline VkSampleCountFlagBits
+FindMaxUsableSampleCount(VkPhysicalDevice physicalDevice)
+{
+    // 获取物理设备属性
+    VkPhysicalDeviceProperties physicalDeviceProperties;
+    vkGetPhysicalDeviceProperties(physicalDevice, &physicalDeviceProperties);
+
+    //
+    VkSampleCountFlags counts =
+        physicalDeviceProperties.limits.framebufferColorSampleCounts
+        & physicalDeviceProperties.limits.framebufferDepthSampleCounts;
+
+    // 判断物理设备支持的最大采样数
+    if (counts & VK_SAMPLE_COUNT_64_BIT) {
+        return VK_SAMPLE_COUNT_64_BIT;
+    }
+    if (counts & VK_SAMPLE_COUNT_32_BIT) {
+        return VK_SAMPLE_COUNT_32_BIT;
+    }
+    if (counts & VK_SAMPLE_COUNT_16_BIT) {
+        return VK_SAMPLE_COUNT_16_BIT;
+    }
+    if (counts & VK_SAMPLE_COUNT_8_BIT) {
+        return VK_SAMPLE_COUNT_8_BIT;
+    }
+    if (counts & VK_SAMPLE_COUNT_4_BIT) {
+        return VK_SAMPLE_COUNT_4_BIT;
+    }
+    if (counts & VK_SAMPLE_COUNT_2_BIT) {
+        return VK_SAMPLE_COUNT_2_BIT;
+    }
+
+    // 如果没有支持多重采样 则返回 1
+    return VK_SAMPLE_COUNT_1_BIT;
+}
+
 // 创建命令缓冲区记录 并绑定 开始单次命令
 inline VkCommandBuffer BeginSingleTimeCommand(VkDevice device,
                                               VkCommandPool commandPool)
@@ -107,7 +144,8 @@ inline VkCommandBuffer BeginSingleTimeCommand(VkDevice device,
 
 // 停止命令缓冲区记录 结束单次命令
 inline void EndSingleTimeCommand(VkDevice device, VkCommandPool commandPool,
-                          VkQueue graphicsQueue, VkCommandBuffer commandBuffer)
+                                 VkQueue graphicsQueue,
+                                 VkCommandBuffer commandBuffer)
 {
     // 停止命令缓冲区记录
     vkEndCommandBuffer(commandBuffer);

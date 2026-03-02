@@ -14,6 +14,7 @@
 #include "VulkanFramebuffer.h"
 #include "VulkanIndexBuffer.h"
 #include "VulkanInstance.h"
+#include "VulkanMsaaColorBuffer.h"
 #include "VulkanPhysicalDevice.h"
 #include "VulkanPipeline.h"
 #include "VulkanPipelineLayout.h"
@@ -96,6 +97,8 @@ private:
         _descriptorSets; // 存放所有分配的 DescriptorSet
 
     VulkanDepthBuffer *_depthBuffer = nullptr;
+
+    VulkanMsaaColorBuffer *_msaaColorBuffer = nullptr; // MSAA 颜色缓冲
 
     VulkanAttachmentDesc _attachmentDesc; // 附件描述
 

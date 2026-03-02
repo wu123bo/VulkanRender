@@ -17,19 +17,24 @@ void VulkanAttachmentDesc::AddAttachment(
     attach.desc.initialLayout = initialLayout;
     attach.desc.finalLayout = finalLayout;
 
-    attach.ref.attachment = (int)type;
-    attach.ref.layout = finalLayout;
-
     // ✅ 这里根据类型选择 Subpass 内使用的布局
-    if (type == AttachmentType::COLOR) {
-        attach.ref.layout =
-            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; // Subpass 内必须用
-                                                      // COLOR_ATTACHMENT_OPTIMAL
-    } else if (type == AttachmentType::DEPTH) {
-        attach.ref.layout =
-            VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL; // Depth
-                                                              // 可以直接用
-                                                              // finalLayout
+    attach.ref.attachment = (int)type;
+    switch (type) {
+        case AttachmentType::COLOR:
+        case AttachmentType::RESOLVE: {
+            attach.ref.layout =
+                VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; // ✅ Subpass 内使用
+                                                          // COLOR_ATTACHMENT_OPTIMAL
+        } break;
+
+        case AttachmentType::DEPTH: {
+            attach.ref.layout =
+                VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL; // Depth
+        } break;
+
+        default: {
+            attach.ref.layout = finalLayout; // 其他类型可以直接用 finalLayout
+        } break;
     }
 
     _attachmentMap[type] = attach;

@@ -71,6 +71,14 @@ public:
         return _properties;
     }
 
+    /**
+     * @brief 获取设备支持的最大采样数（MSAA）
+     */
+    VkSampleCountFlagBits GetMsaaSamples() const
+    {
+        return _msaaSamples;
+    }
+
 private:
     /**
      * @brief 检查某个物理设备是否满足最低要求
@@ -104,6 +112,9 @@ private:
 
     // 设备属性
     VkPhysicalDeviceProperties _properties{};
+
+    // 设备支持的最大采样数（MSAA）
+    VkSampleCountFlagBits _msaaSamples;
 
     // 必需的设备扩展
     const std::vector<const char *> _requiredExtensions = {

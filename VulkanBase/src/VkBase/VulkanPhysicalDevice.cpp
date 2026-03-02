@@ -1,11 +1,13 @@
 ﻿#include "VulkanPhysicalDevice.h"
 
 #include "PrintMsg.h"
+#include "VulkanUtils.h"
 
 namespace VKB
 {
 
 VulkanPhysicalDevice::VulkanPhysicalDevice()
+    : _msaaSamples(VK_SAMPLE_COUNT_1_BIT)
 {
 }
 
@@ -52,6 +54,9 @@ bool VulkanPhysicalDevice::Pick(VkInstance instance, VkSurfaceKHR surface)
 
     // 评分高的设备
     _physicalDevice = bestDevice;
+
+    // 获取当前物理设备支持的最大采样数
+    _msaaSamples = FindMaxUsableSampleCount(_physicalDevice);
 
     // 填充队列族索引
     findQueueFamilies(_physicalDevice, surface);

@@ -16,7 +16,7 @@ VulkanPipeline::~VulkanPipeline()
 bool VulkanPipeline::Init(VkDevice device, VkRenderPass renderPass,
                           VkPipelineLayout layout,
                           const std::vector<VulkanShaderModule *> &shaders,
-                          VkExtent2D extent)
+                          VkExtent2D extent, VkSampleCountFlagBits samples)
 {
     if (VK_NULL_HANDLE == device) {
         PSG::PrintError("创建图形管线失败：逻辑设备为空!");
@@ -82,12 +82,17 @@ bool VulkanPipeline::Init(VkDevice device, VkRenderPass renderPass,
     raster.lineWidth = 1.0f;
 
     // =========================
-    // Multisample（先关闭）
+    // Multisample
     // =========================
     VkPipelineMultisampleStateCreateInfo multisample{};
     multisample.sType =
         VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-    multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    multisample.sampleShadingEnable = VK_TRUE;
+    multisample.rasterizationSamples = samples;
+    multisample.minSampleShading = 0.2f;
+    multisample.pSampleMask = nullptr;
+    multisample.alphaToCoverageEnable = VK_FALSE;
+    multisample.alphaToOneEnable = VK_FALSE;
 
     // 深度测试和模板测试
     VkPipelineDepthStencilStateCreateInfo depthStencil{};
