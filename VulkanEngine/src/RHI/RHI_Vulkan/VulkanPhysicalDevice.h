@@ -1,0 +1,127 @@
+﻿#ifndef VULKANPHYSICALDEVICE_H_
+#define VULKANPHYSICALDEVICE_H_
+
+#include <optional>
+
+#include "VulkanHeadRHI.h"
+
+namespace RHI
+{
+
+/**
+ * @brief VulkanPhysicalDevice
+ *
+ * 负责物理设备（GPU）的选择与能力查询
+ *
+ * 依赖：
+ * - VkInstance
+ * - VkSurfaceKHR（用于判断 Present 支持）
+ */
+
+class VulkanPhysicalDevice
+{
+public:
+    VulkanPhysicalDevice();
+
+    ~VulkanPhysicalDevice();
+
+public:
+    /**
+     * @brief 选择一个合适的物理设备
+     */
+    bool Init(VkInstance instance, VkSurfaceKHR surface);
+
+    /**
+     * @brief 获取 VkPhysicalDevice
+     */
+    VkPhysicalDevice Get() const
+    {
+        return _physicalDevice;
+    }
+
+    /**
+     * @brief Queue Family
+     */
+    QueueFamilyIndices GetQueueFamily() const
+    {
+        return _queueFamilyIndices;
+    }
+
+    /**
+     * @brief Queue Family 支持图形操作的队列族索引
+     */
+    uint32_t GetGraphicsQueueFamily() const
+    {
+        return _queueFamilyIndices.graphicsFamily.value();
+    }
+
+    /**
+     * @brief Queue Family 支持呈现操作的队列族索引
+     */
+    uint32_t GetPresentQueueFamily() const
+    {
+        return _queueFamilyIndices.presentFamily.value();
+    }
+
+    /**
+     * @brief 设备属性（名称、类型等）
+     */
+    const VkPhysicalDeviceProperties &GetProperties() const
+    {
+        return _properties;
+    }
+
+    /**
+     * @brief 获取设备支持的最大采样数（MSAA）
+     */
+    VkSampleCountFlagBits GetMsaaSamples() const
+    {
+        return _msaaSamples;
+    }
+
+private:
+    /**
+     * @brief 检查某个物理设备是否满足最低要求
+     */
+    bool isDeviceSuitable(VkPhysicalDevice device, VkSurfaceKHR surface);
+
+    /**
+     * @brief 查找 Queue Family
+     */
+    void findQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface);
+
+    /**
+     * @brief 检查 Swapchain 扩展是否支持
+     */
+    bool checkDeviceExtensionSupport(VkPhysicalDevice device);
+
+    /**
+     * @brief 评分设备
+     * - 独立显卡加分
+     * - 最大图形队列数量加分
+     * - 支持更多特性可以加分
+     */
+    int RateDevice(VkPhysicalDevice device);
+
+private:
+    // 选中的物理设备
+    VkPhysicalDevice _physicalDevice = VK_NULL_HANDLE;
+
+    // 队列族索引
+    QueueFamilyIndices _queueFamilyIndices;
+
+    // 设备属性
+    VkPhysicalDeviceProperties _properties{};
+
+    // 设备支持的最大采样数（MSAA）
+    VkSampleCountFlagBits _msaaSamples;
+
+    // 必需的设备扩展
+    const std::vector<const char *> _requiredExtensions = {
+        // 交换链(swapChain)扩展
+        VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+};
+
+} // namespace RHI
+
+#endif // !VULKANPHYSICALDEVICE_H_

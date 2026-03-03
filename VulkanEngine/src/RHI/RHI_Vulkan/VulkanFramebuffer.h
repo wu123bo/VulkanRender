@@ -1,0 +1,49 @@
+﻿#ifndef VULKANFRAMEBUFFER_H_
+#define VULKANFRAMEBUFFER_H_
+
+#include "VulkanHeadRHI.h"
+
+namespace RHI
+{
+/**
+ * @brief VulkanFramebuffer
+ *
+ * 负责将 ImageView 绑定到 RenderPass
+ * 强依赖 Swapchain
+ */
+class VulkanFramebuffer
+{
+public:
+    VulkanFramebuffer() = default;
+
+    ~VulkanFramebuffer();
+
+public:
+    /**
+     * @brief 创建 Framebuffer（每个 Swapchain Image 一个）
+     */
+    bool Init(VkDevice device, VkRenderPass renderPass,
+              const std::vector<VkImageView> &swapImageViews,
+              const VkImageView &msaaImageView,
+              const VkImageView &depthImageView, VkExtent2D extent);
+
+    void Destroy();
+
+    /**
+     * @brief 返回帧缓冲对象集合
+     */
+    const std::vector<VkFramebuffer> &Get() const
+    {
+        return _framebuffers;
+    }
+
+private:
+    VkDevice _device = VK_NULL_HANDLE;
+
+    // 帧缓冲对象集合（每个 Swapchain Image 对应一个 Framebuffer）
+    std::vector<VkFramebuffer> _framebuffers;
+};
+
+} // namespace RHI
+
+#endif // !VULKANFRAMEBUFFER_H_

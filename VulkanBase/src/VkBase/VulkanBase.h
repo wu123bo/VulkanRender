@@ -49,6 +49,7 @@ public:
 
 private:
     bool createInstance();
+
     bool createSurface(GLFWwindow *window);
 
     void recreateSwapchain();
