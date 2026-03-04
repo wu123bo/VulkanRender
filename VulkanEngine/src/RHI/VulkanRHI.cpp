@@ -2,20 +2,17 @@
 
 namespace RHI
 {
-VulkanRHI::VulkanRHI()
-{
-    _context = new VulkanContext();
-}
 
 VulkanRHI::~VulkanRHI()
 {
     SDelete(_context);
 }
 
-int VulkanRHI::Init(const SurfaceDescRHI &surfaceDesc, int width, int height)
+bool VulkanRHI::Init(const SurfaceDescRHI &surfaceDesc, int width, int height)
 {
+    _context = new (std::nothrow) VulkanContext();
     if (nullptr == _context) {
-        return 1;
+        return false;
     }
 
     bool ret = _context->Init(surfaceDesc, width, height);
@@ -27,10 +24,6 @@ void VulkanRHI::Shutdown()
 }
 
 void VulkanRHI::BeginFrame()
-{
-}
-
-void VulkanRHI::Render()
 {
 }
 

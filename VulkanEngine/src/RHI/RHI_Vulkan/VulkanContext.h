@@ -23,7 +23,7 @@ public:
 
     ~VulkanContext();
 
-    int Init(const SurfaceDescRHI &surfaceDesc, int width, int height);
+    bool Init(const SurfaceDescRHI &surfaceDesc, int width, int height);
 
 private:
     /**

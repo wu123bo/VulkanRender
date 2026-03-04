@@ -35,53 +35,53 @@ VulkanContext::~VulkanContext()
 {
 }
 
-int VulkanContext::Init(const SurfaceDescRHI &surfaceDesc, int width,
+bool VulkanContext::Init(const SurfaceDescRHI &surfaceDesc, int width,
                         int height)
 {
     // 创建 Vulkan Instance
     bool ret = _instance->Create();
     if (!ret) {
-        return 1;
+        return false;
     }
 
     // 创建 Vulkan Surface
     ret = _surface->Init(_instance->Get(), surfaceDesc);
     if (!ret) {
-        return 1;
+        return false;
     }
 
     // 创建物理逻辑设备
     ret = createDevice();
     if (!ret) {
-        return 1;
+        return false;
     }
 
     // 初始化交换链
     ret = _swapchain->Init(_physicalDevice, _device->Get(), _surface->Get(),
                            width, height);
     if (!ret) {
-        return 1;
+        return false;
     }
 
     // 创建附件 渲染通道
     ret = createRenderPass();
     if (!ret) {
-        return 1;
+        return false;
     }
 
     // 创建视图缓冲区 帧缓冲区
     ret = createFrameBuffer();
     if (!ret) {
-        return 1;
+        return false;
     }
 
     // 创建命令池 命令缓冲区
     ret = createCommandBuffer();
     if (!ret) {
-        return 1;
+        return false;
     }
 
-    return 0;
+    return ret;
 }
 
 bool VulkanContext::createDevice()
@@ -102,7 +102,7 @@ bool VulkanContext::createRenderPass()
     // 创建附件
     bool ret = createAttachmentDesc(_attachment);
     if (!ret) {
-        return 1;
+        return false;
     }
 
     // 初始化渲染通道

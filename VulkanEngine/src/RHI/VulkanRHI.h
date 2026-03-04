@@ -10,18 +10,16 @@ namespace RHI
 class VulkanRHI : public IRHI
 {
 public:
-    VulkanRHI();
+    VulkanRHI() = default;
 
     ~VulkanRHI();
 
-    virtual int Init(const SurfaceDescRHI &surfaceDesc, int width,
-                     int height) override;
+    virtual bool Init(const SurfaceDescRHI &surfaceDesc, int width,
+                      int height) override;
 
     virtual void Shutdown() override;
 
     virtual void BeginFrame() override;
-
-    virtual void Render() override;
 
     virtual void EndFrame() override;
 

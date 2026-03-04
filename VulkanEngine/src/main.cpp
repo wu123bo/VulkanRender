@@ -1,10 +1,7 @@
-﻿#include "RHI/IRHI.h"
-
-#include "RHI/OpenGLRHI.h"
-#include "RHI/VulkanRHI.h"
-
+﻿
+#include "MacroHead.h"
 #include "PrintMsg.h"
-
+#include "Renderer.h"
 #include "WindowHelper.h"
 
 int main()
@@ -24,17 +21,10 @@ int main()
         return -1;
     }
 
-    // 渲染模块
-    RHI::IRHI *RHI = nullptr;
-    if (surfaceDesc.api == RHI::GraphicsAPI::Vulkan) {
-        RHI = new RHI::VulkanRHI();
-    } else {
-        RHI = new RHI::OpenGLRHI();
-    }
+    RHI::Renderer *render = new RHI::Renderer();
+    ret = render->Init(surfaceDesc, width, height);
 
-    ret = RHI->Init(surfaceDesc, width, height);
-
-    if (ret) {
+    if (!ret) {
         PSG::PrintError("渲染模块初始化失败");
         return -1;
     }
@@ -42,14 +32,11 @@ int main()
     while (!glfwWindowShouldClose((GLFWwindow *)window)) {
         glfwPollEvents();
 
-        RHI->BeginFrame();
-
-        RHI->Render();
-
-        RHI->EndFrame();
+        render->RenderFrame();
     }
 
-    RHI->Shutdown();
+    render->Shutdown();
+    SDelete(render);
 
     return 0;
 }

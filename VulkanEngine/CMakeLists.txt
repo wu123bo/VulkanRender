@@ -21,10 +21,13 @@ set(SRC
     src/main.cpp
     src/WindowHelper.h
 
-    src/Render/Renderer.h
+    src/Renderer.h
+    src/Renderer.cpp
 
     src/RHI/IRHI.h
     src/RHI/SurfaceRHI.h
+    src/RHI/FactoryRHI.h
+    src/RHI/FactoryRHI.cpp
 
     src/RHI/VulkanRHI.h
     src/RHI/VulkanRHI.cpp

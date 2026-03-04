@@ -11,7 +11,7 @@ OpenGLRHI::~OpenGLRHI()
 {
 }
 
-int OpenGLRHI::Init(const SurfaceDescRHI &surfaceDesc, int width, int height)
+bool OpenGLRHI::Init(const SurfaceDescRHI &surfaceDesc, int width, int height)
 {
     return 0;
 }
@@ -21,10 +21,6 @@ void OpenGLRHI::Shutdown()
 }
 
 void OpenGLRHI::BeginFrame()
-{
-}
-
-void OpenGLRHI::Render()
 {
 }
 

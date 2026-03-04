@@ -13,14 +13,12 @@ public:
 
     virtual ~IRHI() = default;
 
-    virtual int Init(const SurfaceDescRHI &surfaceDesc, int width,
-                     int height) = 0;
+    virtual bool Init(const SurfaceDescRHI &surfaceDesc, int width,
+                      int height) = 0;
 
     virtual void Shutdown() = 0;
 
     virtual void BeginFrame() = 0;
-
-    virtual void Render() = 0;
 
     virtual void EndFrame() = 0;
 };
