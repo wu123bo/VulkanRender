@@ -23,7 +23,9 @@ bool VulkanImage::Init(VkPhysicalDevice physicalDevice, VkDevice device,
     imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     imageInfo.imageType = VK_IMAGE_TYPE_2D;
     imageInfo.extent = {width, height, 1};
+    // TODO
     imageInfo.mipLevels = 1;
+
     imageInfo.arrayLayers = 1;
     imageInfo.format = format;
     imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;

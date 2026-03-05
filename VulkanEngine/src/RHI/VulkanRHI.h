@@ -4,6 +4,7 @@
 #include "IRHI.h"
 
 #include "RHI_Vulkan/VulkanContext.h"
+#include "RHI_Vulkan/VulkanResourceManager.h"
 
 namespace RHI
 {
@@ -24,7 +25,11 @@ public:
     virtual void EndFrame() override;
 
 private:
+    // 管理 Vulkan 基础对象
     VulkanContext *_context = nullptr;
+
+    // 管理 Buffers / Textures / DescriptorSet
+    VulkanResourceManager *_resourceManager = nullptr;
 };
 } // namespace RHI
 
